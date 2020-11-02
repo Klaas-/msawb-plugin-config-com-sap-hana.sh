@@ -1,0 +1,14 @@
+name: Check new version
+on:
+  schedule:
+    - cron: '0 * * * *'
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          curl -s -L https://aka.ms/scriptforpermsonhana -o msawb-plugin-config-com-sap-hana.sh
+          if ! git diff --exit-code msawb-plugin-config-com-sap-hana.sh; then git add msawb-plugin-config-com-sap-hana.sh; export VERSION=$(grep Constant_Script_Version= msawb-plugin-config-com-sap-hana.sh| awk -F'=' '{ print $2 }'| sed 's/"//g'); git commit -m "Version ${VERSION}"; git push; fi

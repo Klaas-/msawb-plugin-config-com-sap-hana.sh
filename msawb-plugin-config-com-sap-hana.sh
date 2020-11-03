@@ -12,7 +12,8 @@ Constant()
 		Constant_Plugin_Name="com-sap-hana"
 		Constant_Plugin_Default_Backup_Key_Name="AZUREWLBACKUPHANAUSER"
 		Constant_Plugin_Default_Backup_Key_User="AZUREWLBACKUPHANAUSER"
-		Constant_Plugin_Min_Version_SAP_INTERNAL_HANA_SUPPORT_NOT_Required="3.00.046.00" #TODO: Modify major version to 2, once new extension is released with removal of internal role support
+		Constant_Plugin_Min_Version_SAP_INTERNAL_HANA_SUPPORT_NOT_Required="2.00.046.00"
+		Constant_Plugin_Min_Version_MDC_BACKUP_ADMIN_ROLE_Required="2.00.050.00"
 
 		Constant_Plugin_Config_File="${Constant_Msawb_Home}/etc/plugins/${Constant_Plugin_Name}/{1}.config.json"
 		Constant_Plugin_Config_File_Old="${Constant_Msawb_Home}/etc/config/SAPHana/config.json"
@@ -22,7 +23,7 @@ Constant()
 		Constant_Plugin_Host_Service_File="/usr/lib/systemd/system/msawb-pluginhost-${Constant_Plugin_Name}-{1}.service"
 		Constant_Plugin_Host_Service_File_Old="/usr/lib/systemd/system/msawb-pluginhost-saphana-{1}.service"
 
-		Constant_Script_Version="2.0.6.0"
+		Constant_Script_Version="2.0.7.0"
 		Constant_Script_Name="$(basename "${0}")"
 		Constant_Script_Path="$(realpath "${0}")"
 		Constant_Script_Directory="$(dirname "${Constant_Script_Path}")"
@@ -491,6 +492,8 @@ Check()
 			SLES_SAP-12.3
 			SLES-12.4
 			SLES_SAP-12.4
+			SLES-12.5
+			SLES-SAP-12.5
 			SLES-15
 			SLES_SAP-15
 			SLES-15.1
@@ -588,11 +591,21 @@ Check()
 		Logger.LogPass "Received from '${service}' service: 'HTTP/${response}'."
 	}
 
+	Check.TCPConnectivity()
+	{
+		local service="${1}"
+		local url="${2}"
+		local port="${3}"
+
+		Logger.LogInformation "Checking connectivity to '${service}' service."
+		local response && response=$("${Package_Python_Executable}" -c "import socket;sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM);sock.settimeout(120);print(sock.connect_ex(('${url}',${port})))")
+		[ "${response}" -ne "0" ] && Logger.Exit Failure "Failed to connect to '${service}' service."
+		Logger.LogPass "Connectivity check for '${service}' service successful."
+	}
+
 	Check.AadConnectivity()
 	{
-		Check.HttpConnectivity "AAD1" "HEAD" "https://login.windows.net/" "200"
-		Check.HttpConnectivity "AAD2" "HEAD" "https://login.microsoft.com/" "200"
-		Check.HttpConnectivity "AAD3" "GET" "https://graph.windows.net/microsoft.com/\$metadata" "200"
+		Check.TCPConnectivity "AAD1" "login.windows.net" "443"
 	}
 
 	Check.ServiceConnectivity()
@@ -910,7 +923,7 @@ Plugin()
 		Plugin_Instance_Version_SPS="$(expr "$(echo "${Plugin_Instance_Version}" | cut -d '.' -f 3)" / 10)"
 		Logger.LogInformation "Found INSTANCE_VERSION_SPS = '${Plugin_Instance_Version_SPS}'."
 		[ "${Plugin_Instance_Version_Major}" == "1" ] && [ "${Plugin_Instance_Version_SPS}" -lt 9 ] && Logger.Exit Failure "Unsupported INSTANCE_VERSION_MAJOR = '1' and INSTANCE_VERSION_SPS < '9'."
-		[ "${Plugin_Instance_Version_Major}" == "2" ] && [ "${Plugin_Instance_Version_SPS}" -gt 5 ] && Logger.Exit Failure "Unsupported INSTANCE_VERSION_MAJOR = '2' and INSTANCE_VERSION_SPS > '4'."
+		[ "${Plugin_Instance_Version_Major}" == "2" ] && [ "${Plugin_Instance_Version_SPS}" -gt 5 ] && Logger.Exit Failure "Unsupported INSTANCE_VERSION_MAJOR = '2' and INSTANCE_VERSION_SPS > '5'."
 		Logger.LogPass "Supported INSTANCE_VERSION."
 
 		Logger.LogInformation "Determining DRIVER_PATH."
@@ -1315,6 +1328,13 @@ Plugin()
 			Plugin.GrantPrivilege "SAP_INTERNAL_HANA_SUPPORT"
 		}
 		fi
+		Package.VersionCompare "${Plugin_Instance_Version}" "${Constant_Plugin_Min_Version_MDC_BACKUP_ADMIN_ROLE_Required}"
+		if [ "${Package_Version_Compare_Result}" -eq "0" ]
+		then
+		{
+			Plugin.GrantPrivilege "BACKUP ADMIN"
+		}
+		fi
 	}
 
 	Plugin.CheckPrivilege()
@@ -1350,6 +1370,27 @@ Plugin()
 			Plugin_Check_User_Result="${Plugin_Check_Privilege_Result}"
 		}
 		fi
+		Package.VersionCompare "${Plugin_Instance_Version}" "${Constant_Plugin_Min_Version_MDC_BACKUP_ADMIN_ROLE_Required}"
+		if [ "${Package_Version_Compare_Result}" -eq "0" ]
+		then
+		{
+			Plugin.RunQueryAsBackup "SELECT GRANTEE FROM EFFECTIVE_PRIVILEGE_GRANTEES WHERE OBJECT_TYPE = 'SYSTEMPRIVILEGE' AND PRIVILEGE = 'BACKUP ADMIN' AND GRANTEE ='${Plugin_Backup_Key_User}'"
+			local checkResult="${Plugin_Run_Query_Output}"
+			if [ "${checkResult^^}" != "${Plugin_Backup_Key_User^^}" ]
+			then
+			{
+				Logger.LogWarning "Check failed: 'BACKUP ADMIN'."
+				Plugin_Check_User_Result=0
+			}
+			else
+			{
+				Logger.LogPass "BACKUP ADMIN role present."
+				Plugin_Check_User_Result=1
+			}
+			fi
+		}
+		fi
+		[ "${Plugin_Check_User_Result}" -eq "0" ] && return
 	}
 
 	Plugin.ReadConfig()

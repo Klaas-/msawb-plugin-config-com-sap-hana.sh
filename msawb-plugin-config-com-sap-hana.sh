@@ -12,6 +12,7 @@ Constant()
 		Constant_Plugin_Name="com-sap-hana"
 		Constant_Plugin_Default_Backup_Key_Name="AZUREWLBACKUPHANAUSER"
 		Constant_Plugin_Default_Backup_Key_User="AZUREWLBACKUPHANAUSER"
+		Constant_Plugin_Min_Version_SAP_INTERNAL_HANA_SUPPORT_NOT_Required="3.00.046.00" #TODO: Modify major version to 2, once new extension is released with removal of internal role support
 
 		Constant_Plugin_Config_File="${Constant_Msawb_Home}/etc/plugins/${Constant_Plugin_Name}/{1}.config.json"
 		Constant_Plugin_Config_File_Old="${Constant_Msawb_Home}/etc/config/SAPHana/config.json"
@@ -21,7 +22,7 @@ Constant()
 		Constant_Plugin_Host_Service_File="/usr/lib/systemd/system/msawb-pluginhost-${Constant_Plugin_Name}-{1}.service"
 		Constant_Plugin_Host_Service_File_Old="/usr/lib/systemd/system/msawb-pluginhost-saphana-{1}.service"
 
-		Constant_Script_Version="2.0.5.0"
+		Constant_Script_Version="2.0.6.0"
 		Constant_Script_Name="$(basename "${0}")"
 		Constant_Script_Path="$(realpath "${0}")"
 		Constant_Script_Directory="$(dirname "${Constant_Script_Path}")"
@@ -649,6 +650,8 @@ Check()
 			[westindia]="https://inwpod01fab1wxsakmfn8.blob.core.windows.net,https://inwpod01fab1wxsakmfn8.queue.core.windows.net,https://pod01-prot1.inw.backup.windowsazure.com"
 			[westus]="https://wuspod01fab1wxsa95jfo.blob.core.windows.net,https://wuspod01fab1wxsa95jfo.queue.core.windows.net,https://pod01-prot1.wus.backup.windowsazure.com"
 			[westus2]="https://wus2pod01fab1wxsata8kz.blob.core.windows.net,https://wus2pod01fab1wxsata8kz.queue.core.windows.net,https://pod01-prot1.wus2.backup.windowsazure.com"
+			[norwayeast]="https://nwepod01fab1wxsa56atw.blob.core.windows.net,https://nwepod01fab1wxsa56atw.queue.core.windows.net,https://pod01-prot1.nwe.backup.windowsazure.com"
+			[norwaywest]="https://nwwpod01fab1wxsacnbvq.blob.core.windows.net,https://nwwpod01fab1wxsacnbvq.queue.core.windows.net,https://pod01-prot1.nww.backup.windowsazure.com"
 		)
 
 		if [ "x${Check_IMDS_VM_Region}" == "x" ]
@@ -907,7 +910,7 @@ Plugin()
 		Plugin_Instance_Version_SPS="$(expr "$(echo "${Plugin_Instance_Version}" | cut -d '.' -f 3)" / 10)"
 		Logger.LogInformation "Found INSTANCE_VERSION_SPS = '${Plugin_Instance_Version_SPS}'."
 		[ "${Plugin_Instance_Version_Major}" == "1" ] && [ "${Plugin_Instance_Version_SPS}" -lt 9 ] && Logger.Exit Failure "Unsupported INSTANCE_VERSION_MAJOR = '1' and INSTANCE_VERSION_SPS < '9'."
-		[ "${Plugin_Instance_Version_Major}" == "2" ] && [ "${Plugin_Instance_Version_SPS}" -gt 4 ] && Logger.Exit Failure "Unsupported INSTANCE_VERSION_MAJOR = '2' and INSTANCE_VERSION_SPS > '4'."
+		[ "${Plugin_Instance_Version_Major}" == "2" ] && [ "${Plugin_Instance_Version_SPS}" -gt 5 ] && Logger.Exit Failure "Unsupported INSTANCE_VERSION_MAJOR = '2' and INSTANCE_VERSION_SPS > '4'."
 		Logger.LogPass "Supported INSTANCE_VERSION."
 
 		Logger.LogInformation "Determining DRIVER_PATH."
@@ -1304,7 +1307,14 @@ Plugin()
 		[ "${Plugin_Instance_Type}" == "MDC" ] && Plugin.GrantPrivilege "DATABASE ADMIN"
 		[ "${Plugin_Instance_Type}" == "SDC" ] && Plugin.GrantPrivilege "BACKUP ADMIN"
 		Plugin.GrantPrivilege "CATALOG READ"
-		Plugin.GrantPrivilege "SAP_INTERNAL_HANA_SUPPORT"
+		Package.VersionCompare "${Plugin_Instance_Version}" "${Constant_Plugin_Min_Version_SAP_INTERNAL_HANA_SUPPORT_NOT_Required}"
+		if [ "${Package_Version_Compare_Result}" -ne "0" ]
+		then
+		{
+			Logger.LogInformation "INSTANCE_VERSION = '${Plugin_Instance_Version}': Required 'SAP_INTERNAL_HANA_SUPPORT' role."
+			Plugin.GrantPrivilege "SAP_INTERNAL_HANA_SUPPORT"
+		}
+		fi
 	}
 
 	Plugin.CheckPrivilege()
@@ -1332,8 +1342,14 @@ Plugin()
 		[ "${Plugin_Instance_Type}" == "SDC" ] && Plugin.CheckPrivilege "CATALOG READ" "SELECT BACKUP_ID FROM SYS.M_BACKUP_CATALOG WHERE STATE_NAME = 'DUMMY_STATE_NAME'"
 		Plugin_Check_User_Result="${Plugin_Check_Privilege_Result}"
 		[ "${Plugin_Check_User_Result}" -eq "0" ] && return
-		Plugin.CheckPrivilege "SAP_INTERNAL_HANA_SUPPORT" "SELECT BACKUP_ID FROM SYS.M_DEV_BACKUP_CATALOG_LOG_ WHERE STATE_NAME = 'DUMMY_STATE_NAME'"
-		Plugin_Check_User_Result="${Plugin_Check_Privilege_Result}"
+		Package.VersionCompare "${Plugin_Instance_Version}" "${Constant_Plugin_Min_Version_SAP_INTERNAL_HANA_SUPPORT_NOT_Required}"
+		if [ "${Package_Version_Compare_Result}" -ne "0" ]
+		then
+		{
+			Plugin.CheckPrivilege "SAP_INTERNAL_HANA_SUPPORT" "SELECT BACKUP_ID FROM SYS.M_DEV_BACKUP_CATALOG_LOG_ WHERE STATE_NAME = 'DUMMY_STATE_NAME'"
+			Plugin_Check_User_Result="${Plugin_Check_Privilege_Result}"
+		}
+		fi
 	}
 
 	Plugin.ReadConfig()

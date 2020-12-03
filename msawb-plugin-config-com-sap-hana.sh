@@ -23,7 +23,7 @@ Constant()
 		Constant_Plugin_Host_Service_File="/usr/lib/systemd/system/msawb-pluginhost-${Constant_Plugin_Name}-{1}.service"
 		Constant_Plugin_Host_Service_File_Old="/usr/lib/systemd/system/msawb-pluginhost-saphana-{1}.service"
 
-		Constant_Script_Version="2.0.7.0"
+		Constant_Script_Version="2.0.8.0"
 		Constant_Script_Name="$(basename "${0}")"
 		Constant_Script_Path="$(realpath "${0}")"
 		Constant_Script_Directory="$(dirname "${Constant_Script_Path}")"
@@ -150,6 +150,8 @@ Package()
 
 		Package_SLES_Update_Command="echo -n"
 		Package_SLES_Install_Command="zypper -n install {1}"
+		Package_SLES_Version_Command="rpm -q --queryformat %{version} {1}"
+		Package_SLES_Search_Command="rpm -qa {1}"
 
 		Package_RHEL_Update_Command="echo -n"
 		Package_RHEL_Install_Command="yum -y install {1}"
@@ -200,6 +202,10 @@ Package()
 		Package_Libicu_Version_Min="50.1.2"
 		Package_Libicu_Version_Rec="50.1.2"
 		Package_Libicu_RHEL="libicu"
+
+		Package_PythonXML_Version_Min="2.7.17"
+		Package_PythonXML_Version_Rec="2.7.17"
+		Package_PythonXML_SLES="python-xml"
 	}
 
 	Package.Update()
@@ -498,6 +504,8 @@ Check()
 			SLES_SAP-15
 			SLES-15.1
 			SLES_SAP-15.1
+			SLES-15.2
+			SLES_SAP-15.2
 			RHEL-7.4
 			RHEL-7.5
 			RHEL-7.6
@@ -547,6 +555,14 @@ Check()
 		systemctl is-active --quiet waagent.service
 		[ "${?}" -ne "0" ] && Logger.Exit Failure "Service 'WaAgent' is not active."
 		Logger.LogPass "Service 'WaAgent' is active."
+	}
+
+	Check.PythonXMLReq()
+	{
+		Logger.LogInformation "Checking python-xml package is required or not."
+		local response && response=$("${Package_Python_Executable}" -c $'try:\n\timport xml.etree.ElementTree as ET\n\tprint("0")\nexcept:\n\tprint("1")')
+		[ "${response}" -ne "0" ] && Package.Require PythonXML "true"
+		Logger.LogPass "python-xml package dependency resolved."
 	}
 
 	Check.Wireserver()
@@ -1661,6 +1677,7 @@ Main()
 				Package.Require Libicu "true"
 
 				Check.Waagent
+				Check.PythonXMLReq
 				Check.Wireserver
 				Check.IMDS
 

@@ -23,7 +23,7 @@ Constant()
 		Constant_Plugin_Host_Service_File="/usr/lib/systemd/system/msawb-pluginhost-${Constant_Plugin_Name}-{1}.service"
 		Constant_Plugin_Host_Service_File_Old="/usr/lib/systemd/system/msawb-pluginhost-saphana-{1}.service"
 
-		Constant_Script_Version="2.0.8.0"
+		Constant_Script_Version="2.0.8.2"
 		Constant_Script_Name="$(basename "${0}")"
 		Constant_Script_Path="$(realpath "${0}")"
 		Constant_Script_Directory="$(dirname "${Constant_Script_Path}")"
@@ -206,6 +206,14 @@ Package()
 		Package_PythonXML_Version_Min="2.7.17"
 		Package_PythonXML_Version_Rec="2.7.17"
 		Package_PythonXML_SLES="python-xml"
+
+		Package_Unzip_Executable="unzip"
+		Package_Unzip_Version_Min="6.0"
+		Package_Unzip_Version_Rec="6.0"
+		Package_Unzip_SLES="unzip"
+		Package_Unzip_RHEL="unzip"
+		Package_Unzip_SLES_Upgrade="true"
+		Package_Unzip_RHEL_Upgrade="true"
 	}
 
 	Package.Update()
@@ -511,6 +519,7 @@ Check()
 			RHEL-7.6
 			RHEL-7.7
 			RHEL-8.1
+			RHEL-8.2
 		Check_OS_Name_Version_Supported_EOF
 		[ "${?}" -ne "0" ] && Logger.Exit Failure "Found unsupported OS_NAME_VERSION = '${Check_OS_Name_Version}'."
 		Logger.LogPass "Found supported OS_NAME_VERSION = '${Check_OS_Name_Version}'."
@@ -1675,6 +1684,7 @@ Main()
 				Package.Require WaAgent
 				Package.Require Curl
 				Package.Require Libicu "true"
+				Package.Require Unzip "true"
 
 				Check.Waagent
 				Check.PythonXMLReq

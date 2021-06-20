@@ -23,7 +23,7 @@ Constant()
 		Constant_Plugin_Host_Service_File="/usr/lib/systemd/system/msawb-pluginhost-${Constant_Plugin_Name}-{1}.service"
 		Constant_Plugin_Host_Service_File_Old="/usr/lib/systemd/system/msawb-pluginhost-saphana-{1}.service"
 
-		Constant_Script_Version="2.0.8.2"
+		Constant_Script_Version="2.0.8.3"
 		Constant_Script_Name="$(basename "${0}")"
 		Constant_Script_Path="$(realpath "${0}")"
 		Constant_Script_Directory="$(dirname "${Constant_Script_Path}")"
@@ -265,7 +265,7 @@ Package()
 			"RHEL")
 			{
 				case "${Package_OS_Version}" in
-					"7.4" | "7.5" | "7.6" | "7.7")
+					"7.4" | "7.5" | "7.6" | "7.7" | "7.9")
 					{
 						Package_UnixODBC_RHEL=${Package_UnixODBC_RHEL_Compat}
 						Package.Require UnixODBC
@@ -518,6 +518,7 @@ Check()
 			RHEL-7.5
 			RHEL-7.6
 			RHEL-7.7
+			RHEL-7.9
 			RHEL-8.1
 			RHEL-8.2
 		Check_OS_Name_Version_Supported_EOF
@@ -1399,7 +1400,7 @@ Plugin()
 		if [ "${Package_Version_Compare_Result}" -eq "0" ]
 		then
 		{
-			Plugin.RunQueryAsBackup "SELECT GRANTEE FROM EFFECTIVE_PRIVILEGE_GRANTEES WHERE OBJECT_TYPE = 'SYSTEMPRIVILEGE' AND PRIVILEGE = 'BACKUP ADMIN' AND GRANTEE ='${Plugin_Backup_Key_User}'"
+			Plugin.RunQueryAsBackup "SELECT TOP 1 GRANTEE FROM EFFECTIVE_PRIVILEGE_GRANTEES WHERE OBJECT_TYPE = 'SYSTEMPRIVILEGE' AND PRIVILEGE = 'BACKUP ADMIN' AND GRANTEE ='${Plugin_Backup_Key_User}'"
 			local checkResult="${Plugin_Run_Query_Output}"
 			if [ "${checkResult^^}" != "${Plugin_Backup_Key_User^^}" ]
 			then

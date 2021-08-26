@@ -23,15 +23,13 @@ Constant()
 		Constant_Plugin_Host_Service_File="/usr/lib/systemd/system/msawb-pluginhost-${Constant_Plugin_Name}-{1}.service"
 		Constant_Plugin_Host_Service_File_Old="/usr/lib/systemd/system/msawb-pluginhost-saphana-{1}.service"
 
-		Constant_Script_Version="2.0.8.5"
+		Constant_Script_Version="2.0.8.3"
 		Constant_Script_Name="$(basename "${0}")"
 		Constant_Script_Path="$(realpath "${0}")"
 		Constant_Script_Directory="$(dirname "${Constant_Script_Path}")"
 		Constant_Script_User="$(whoami)"
 		Constant_Script_Log_File="${Constant_Msawb_Home}/var/log/plugins/${Constant_Plugin_Name}/config.$(date +%s).log"
 		Constant_Script_Source_Url="https://aka.ms/scriptforpermsonhana"
-
-		Constant_UserHints_SystemKeyCreationMsg="Please create a system key for the system user by running the following command as <sid>adm user\n\n\nfor the mdc machine-\nhdbuserstore set <SYSTEM KEY NAME> localhost:3<INSTANCE_NUMBER>13 SYSTEM '<PASSWORD FOR SYSTEM USER>'\nFor sdc machine -\nhdbuserstore set <SYSTEM KEY NAME> localhost:3<INSTANCE_NUMBER>15 SYSTEM '<PASSWORD FOR SYSTEM USER>'\n\n\nThis system key can be deleted after creation of backup user."
 	}
 }
 
@@ -241,7 +239,7 @@ Package()
 			"SLES")
 			{
 				case "${Package_OS_Version}" in
-					"15" | "15.1" | "15.2")
+					"15" | "15.1")
 					{
 						Package_Python_Executable=${Package_Python3_Executable}
 						Package.Require Python3
@@ -516,8 +514,6 @@ Check()
 			SLES_SAP-15.1
 			SLES-15.2
 			SLES_SAP-15.2
-			SLES-15.3
-			SLES_SAP-15.3
 			RHEL-7.4
 			RHEL-7.5
 			RHEL-7.6
@@ -525,7 +521,6 @@ Check()
 			RHEL-7.9
 			RHEL-8.1
 			RHEL-8.2
-			RHEL-8.4
 		Check_OS_Name_Version_Supported_EOF
 		[ "${?}" -ne "0" ] && Logger.Exit Failure "Found unsupported OS_NAME_VERSION = '${Check_OS_Name_Version}'."
 		Logger.LogPass "Found supported OS_NAME_VERSION = '${Check_OS_Name_Version}'."
@@ -565,10 +560,10 @@ Check()
 	Check.Waagent()
 	{
 		Logger.LogInformation "Restarting 'WaAgent' service."
-		#systemctl restart waagent.service
+		systemctl restart waagent.service
 		Logger.LogInformation "Checking status of 'WaAgent' service."
 		systemctl is-active --quiet waagent.service
-		[ "${?}" -ne "0" ] && Logger.Exit Failure "Service 'WaAgent' is not active. Please run following command to restart waagent:\n systemctl restart waagent.service\n\n"
+		[ "${?}" -ne "0" ] && Logger.Exit Failure "Service 'WaAgent' is not active."
 		Logger.LogPass "Service 'WaAgent' is active."
 	}
 
@@ -977,7 +972,7 @@ Plugin()
 			if [ "x${Plugin_Find_Key_Name}" == "x" ]
 			then
 			{
-				Logger.LogWarning "Failed to determine SYSTEM_KEY_NAME: Please specify with the '--system-key' option.\n${Constant_UserHints_SystemKeyCreationMsg}"
+				Logger.LogWarning "Failed to determine SYSTEM_KEY_NAME: Please specify with the '--system-key' option."
 			}
 			else
 			{
@@ -994,7 +989,7 @@ Plugin()
 			if [ "x${Plugin_Find_Key_Name}" == "x" ]
 			then
 			{
-				Logger.LogWarning "Specified SYSTEM_KEY_NAME is invalid: Please ensure that it is available in the hdbuserstore.\n${Constant_UserHints_SystemKeyCreationMsg}"
+				Logger.LogWarning "Specified SYSTEM_KEY_NAME is invalid: Please ensure that it is available in the hdbuserstore."
 				Plugin_System_Key_Name=""
 			}
 			else
@@ -1062,7 +1057,7 @@ Plugin()
 		then
 		{
 			[ "${Plugin_Backup_Key_User}" != "${Constant_Plugin_Default_Backup_Key_User}" ] && Logger.Exit Failure "Will not modify non-standard backup user '${Plugin_Find_Key_User}'."
-			[ "x${Plugin_System_Key_Name}" == "x" ] && Logger.Exit Failure "Need a valid system key to create the backup key.\n${Constant_UserHints_SystemKeyCreationMsg}"
+			[ "x${Plugin_System_Key_Name}" == "x" ] && Logger.Exit Failure "Need a valid system key to create the backup key."
 			Plugin.CheckSystemOverview
 			Plugin.DeleteUser
 			Plugin.CreateUser
@@ -1081,7 +1076,7 @@ Plugin()
 		if [ "${Plugin_Check_User_Result}" != "1" ]
 		then
 		{
-			[ "x${Plugin_System_Key_Name}" == "x" ] && Logger.Exit Failure "Need a valid system key to repair the backup key.\n${Constant_UserHints_SystemKeyCreationMsg}"
+			[ "x${Plugin_System_Key_Name}" == "x" ] && Logger.Exit Failure "Need a valid system key to repair the backup key."
 			Plugin.GrantUser
 			Plugin.CheckUser
 			[ "${Plugin_Check_User_Result}" != "1" ] && Logger.Exit Failure "Failed to grant backup privileges to backup user."
@@ -1372,18 +1367,8 @@ Plugin()
 	{
 		Logger.LogInformation "Checking privilege '${1}' on '${Plugin_Backup_Key_User}'."
 		Plugin.RunQueryAsBackup "${2}"
-
-		local expectedOuputBackupKeyUser=""
-		[ "$#" -ge "3" ] && expectedOuputBackupKeyUser=${3}
-
 		local checkResult="${Plugin_Run_Query_Output}"
-		if [[ "x${checkResult}" != "x" &&  "x${expectedOuputBackupKeyUser}" == "x" ]]
-		then
-		{
-			Logger.LogWarning "Check failed: '${checkResult}'."
-			Plugin_Check_Privilege_Result=0
-		}
-		elif [[ "x${expectedOuputBackupKeyUser}" == "xtrue" && "${checkResult^^}" != "${Plugin_Backup_Key_User^^}" ]]
+		if [ "x${checkResult}" != "x" ]
 		then
 		{
 			Logger.LogWarning "Check failed: '${checkResult}'."
@@ -1403,29 +1388,34 @@ Plugin()
 		[ "${Plugin_Instance_Type}" == "SDC" ] && Plugin.CheckPrivilege "CATALOG READ" "SELECT BACKUP_ID FROM SYS.M_BACKUP_CATALOG WHERE STATE_NAME = 'DUMMY_STATE_NAME'"
 		Plugin_Check_User_Result="${Plugin_Check_Privilege_Result}"
 		[ "${Plugin_Check_User_Result}" -eq "0" ] && return
-		
 		Package.VersionCompare "${Plugin_Instance_Version}" "${Constant_Plugin_Min_Version_SAP_INTERNAL_HANA_SUPPORT_NOT_Required}"
 		if [ "${Package_Version_Compare_Result}" -ne "0" ]
 		then
 		{
 			Plugin.CheckPrivilege "SAP_INTERNAL_HANA_SUPPORT" "SELECT BACKUP_ID FROM SYS.M_DEV_BACKUP_CATALOG_LOG_ WHERE STATE_NAME = 'DUMMY_STATE_NAME'"
 			Plugin_Check_User_Result="${Plugin_Check_Privilege_Result}"
-			[ "${Plugin_Check_User_Result}" -eq "0" ] && return
 		}
 		fi
-		
 		Package.VersionCompare "${Plugin_Instance_Version}" "${Constant_Plugin_Min_Version_MDC_BACKUP_ADMIN_ROLE_Required}"
 		if [ "${Package_Version_Compare_Result}" -eq "0" ]
 		then
 		{
-			Plugin.CheckPrivilege "BACKUP ADMIN" "SELECT TOP 1 GRANTEE FROM EFFECTIVE_PRIVILEGE_GRANTEES WHERE OBJECT_TYPE = 'SYSTEMPRIVILEGE' AND PRIVILEGE = 'BACKUP ADMIN' AND GRANTEE ='${Plugin_Backup_Key_User}'" "true"
-			Plugin_Check_User_Result="${Plugin_Check_Privilege_Result}"
-			[ "${Plugin_Check_User_Result}" -eq "0" ] && return
+			Plugin.RunQueryAsBackup "SELECT TOP 1 GRANTEE FROM EFFECTIVE_PRIVILEGE_GRANTEES WHERE OBJECT_TYPE = 'SYSTEMPRIVILEGE' AND PRIVILEGE = 'BACKUP ADMIN' AND GRANTEE ='${Plugin_Backup_Key_User}'"
+			local checkResult="${Plugin_Run_Query_Output}"
+			if [ "${checkResult^^}" != "${Plugin_Backup_Key_User^^}" ]
+			then
+			{
+				Logger.LogWarning "Check failed: 'BACKUP ADMIN'."
+				Plugin_Check_User_Result=0
+			}
+			else
+			{
+				Logger.LogPass "BACKUP ADMIN role present."
+				Plugin_Check_User_Result=1
+			}
+			fi
 		}
 		fi
-
-		[ "${Plugin_Instance_Type}" == "MDC" ] &&  Plugin.CheckPrivilege "DATABASE ADMIN" "SELECT TOP 1 GRANTEE FROM EFFECTIVE_PRIVILEGE_GRANTEES WHERE OBJECT_TYPE = 'SYSTEMPRIVILEGE' AND PRIVILEGE = 'DATABASE ADMIN' AND GRANTEE ='${Plugin_Backup_Key_User}'" "true"
-		Plugin_Check_User_Result="${Plugin_Check_Privilege_Result}"
 		[ "${Plugin_Check_User_Result}" -eq "0" ] && return
 	}
 

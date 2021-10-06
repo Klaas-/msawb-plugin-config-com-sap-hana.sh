@@ -23,7 +23,7 @@ Constant()
 		Constant_Plugin_Host_Service_File="/usr/lib/systemd/system/msawb-pluginhost-${Constant_Plugin_Name}-{1}.service"
 		Constant_Plugin_Host_Service_File_Old="/usr/lib/systemd/system/msawb-pluginhost-saphana-{1}.service"
 
-		Constant_Script_Version="2.0.9.0"
+		Constant_Script_Version="2.0.8.5"
 		Constant_Script_Name="$(basename "${0}")"
 		Constant_Script_Path="$(realpath "${0}")"
 		Constant_Script_Directory="$(dirname "${Constant_Script_Path}")"
@@ -751,14 +751,6 @@ Plugin()
 		Plugin_Backup_Key_Name=""
 		Plugin_Backup_Key_User=""
 		Plugin_Skip_Network_Checks="0"
-		Plugin_Encrypt=""
-		Plugin_Ssl_Key_Store=""
-		Plugin_Ssl_Trust_Store=""
-		Plugin_Ssl_Crypto_Provider=""
-		Plugin_Host_Name_In_Certificate=""
-		Plugin_Ssl_Validate_Certificate=""
-		Plugin_Secudir=""
-		Plugin_Home=""
 	}
 
 	Plugin.Parse()
@@ -835,44 +827,6 @@ Plugin()
 				{
 					shift
 					Plugin_Skip_Network_Checks="1"
-				};;
-
-				"-sks"|"--sslkeystore")
-				{
-					Logger.ExitOnArgumentMissing "${@}"
-					shift
-					Plugin_Ssl_Key_Store="${1}"
-					shift
-				};;
-
-				"-sts"|"--ssltruststore")
-				{
-					Logger.ExitOnArgumentMissing "${@}"
-					shift
-					Plugin_Ssl_Trust_Store="${1}"
-					shift
-				};;
-
-				"-scp"|"--sslcryptoprovider")
-				{
-					Logger.ExitOnArgumentMissing "${@}"
-					shift
-					Plugin_Ssl_Crypto_Provider="${1}"
-					shift
-				};;
-
-				"-sh"|"--sslhostnameincertificate")
-				{
-					Logger.ExitOnArgumentMissing "${@}"
-					shift
-					Plugin_Host_Name_In_Certificate="${1}"
-					shift
-				};;
-
-				"-svc"|"--sslvalidatecertificate")
-				{
-					shift
-					Plugin_Ssl_Validate_Certificate="true"
 				};;
 
 				*)
@@ -1096,8 +1050,6 @@ Plugin()
 		}
 		fi
 
-		Plugin.SslConfig
-
 		if [ "${Plugin_Backup_Key_Exists}" -eq "1" ]
 		then
 		{
@@ -1139,136 +1091,6 @@ Plugin()
 		Plugin.AddSupplementaryGroupToUser
 		Plugin.WriteConfig
 		Plugin.WriteEnvironment
-	}
-
-	Plugin.SslConfig()
-	{
-		Logger.LogInformation "Determining SSL configuration."
-		
-		hostname=$(hostname)
-		sslEnforce=""
-
-		SAP_HANA_SYSTEM_CONFIG="/usr/sap/${Plugin_Sid}/SYS/global/hdb/custom/config/global.ini"
-		SAP_HANA_DEFAULT_CONFIG="/usr/sap/${Plugin_Sid}/HDB${Plugin_Instance_Number}/exe/config/global.ini"
-		SAP_HANA_HOST_CONFIG="/usr/sap/${Plugin_Sid}/HDB${Plugin_Instance_Number}/${hostname,,}/global.ini"
-		SAP_HANA_DATABASE_CONFIG="${SAP_HANA_SYSTEM_CONFIG}"
-
-		if [ -f "$SAP_HANA_SYSTEM_CONFIG" ]; then
-			sslEnforce=$(sed -nr "{ :l /^ssl[Ee]nforce[ ]*=/ { s/.*=[ ]*//; p; q;}; n; b l;}" "${SAP_HANA_SYSTEM_CONFIG}") 
-		fi
-		
-
-		if [ "${sslEnforce}" == "true" ];
-		then
-		{
-			Plugin_Secudir="/usr/sap/${Plugin_Sid}/HDB${Plugin_Instance_Number}/${hostname,,}/sec"
-			Plugin_Home="/usr/sap/${Plugin_Sid}/home"
-
-			Plugin_Encrypt="true"
-			
-			if [ "x${Plugin_Ssl_Key_Store}" == "x" ];
-			then 
-			{
-				if [ -f "$SAP_HANA_HOST_CONFIG" ]; then
-					Plugin_Ssl_Key_Store=$(sed -nr "{ :l /^ssl[Kk]ey[Ss]tore[ ]*=/ { s/.*=[ ]*//; p; q;}; n; b l;}" "${SAP_HANA_HOST_CONFIG}")
-				fi
-				
-				if [ "x${Plugin_Ssl_Key_Store}" == "x" ]; then
-					Plugin_Ssl_Key_Store=$(sed -nr "{ :l /^ssl[Kk]ey[Ss]tore[ ]*=/ { s/.*=[ ]*//; p; q;}; n; b l;}" "${SAP_HANA_DEFAULT_CONFIG}")
-				fi
-			}
-			fi
-			
-
-			if [ "x${Plugin_Ssl_Trust_Store}" == "x" ];
-			then 
-			{
-				if [ -f "$SAP_HANA_HOST_CONFIG" ]; then
-					Plugin_Ssl_Trust_Store=$(sed -nr "{ :l /^ssl[Tt]rust[Ss]tore[ ]*=/ { s/.*=[ ]*//; p; q;}; n; b l;}" "${SAP_HANA_HOST_CONFIG}")
-				fi
-				
-				if [ "x${Plugin_Ssl_Trust_Store}" == "x" ]; then
-					Plugin_Ssl_Trust_Store=$(sed -nr "{ :l /^ssl[Tt]rust[Ss]tore[ ]*=/ { s/.*=[ ]*//; p; q;}; n; b l;}" "${SAP_HANA_DEFAULT_CONFIG}")
-				fi
-			}
-			fi
-
-			if [ "x${Plugin_Ssl_Crypto_Provider}" == "x" ];
-			then 
-			{
-				if [ -f "$SAP_HANA_HOST_CONFIG" ]; then
-					Plugin_Ssl_Crypto_Provider=$(sed -nr "{ :l /^ssl[Cc]rypto[Pp]rovider[ ]*=/ { s/.*=[ ]*//; p; q;}; n; b l;}" "${SAP_HANA_HOST_CONFIG}")
-				fi
-				
-				if [ "x${Plugin_Ssl_Crypto_Provider}" == "x" ]; then
-					Plugin_Ssl_Crypto_Provider=$(sed -nr "{ :l /^ssl[Cc]rypto[Pp]rovider[ ]*=/ { s/.*=[ ]*//; p; q;}; n; b l;}" "${SAP_HANA_DEFAULT_CONFIG}")
-				fi
-			}
-			fi
-
-			Logger.LogPass "Found SslCryptoProvider = ${Plugin_Ssl_Crypto_Provider}"
-
-			if [ "x${Plugin_Ssl_Validate_Certificate}" == "x" ];
-			then 
-			{
-				if [ -f "$SAP_HANA_HOST_CONFIG" ]; then
-					Plugin_Ssl_Validate_Certificate=$(sed -nr "{ :l /^ssl[Vv]alidate[Cc]ertificate[ ]*=/ { s/.*=[ ]*//; p; q;}; n; b l;}" "${SAP_HANA_HOST_CONFIG}")
-				fi
-				
-				if [ "x${Plugin_Ssl_Crypto_Provider}" == "x" ]; then
-					Plugin_Ssl_Validate_Certificate=$(sed -nr "{ :l /^ssl[Vv]alidate[Cc]ertificate[ ]*=/ { s/.*=[ ]*//; p; q;}; n; b l;}" "${SAP_HANA_DEFAULT_CONFIG}")
-				fi
-			}
-			fi
-
-			Logger.LogPass "SslValidateCertificate is set to = ${Plugin_Ssl_Validate_Certificate}"
-
-			if [ "${Plugin_Ssl_Crypto_Provider}" == "commoncrypto" ]; 
-			then 
-			{
-				Plugin_Ssl_Key_Store="${Plugin_Secudir}/${Plugin_Ssl_Key_Store}"
-				[ -f "$Plugin_Ssl_Key_Store" ] && Logger.LogPass "Found SslKeyStore = ${Plugin_Ssl_Key_Store}" || Logger.Exit Failure "SslKeyStore - ${Plugin_Ssl_Key_Store} does not exist. Please specify SslKeyStore file with -sks parameter. Refer to --help for more information."
-				Plugin_Ssl_Trust_Store="${Plugin_Secudir}/${Plugin_Ssl_Trust_Store}"
-				[ -f "$Plugin_Ssl_Trust_Store" ] && Logger.LogPass "Found SslTrustStore = ${Plugin_Ssl_Trust_Store}" || Logger.Exit Failure "SslTrustStore - ${Plugin_Ssl_Trust_Store} does not exist. Please specify SslTrustStore file with -sts parameter. Refer to --help for more information."
-			
-			} elif [ "${Plugin_Ssl_Crypto_Provider}" == "openssl" ];
-			then
-			{
-				Plugin_Ssl_Key_Store="${Plugin_Home}/.ssl/${Plugin_Ssl_Key_Store}"
-				[ -f "$Plugin_Ssl_Key_Store" ] && Logger.LogPass "Found SslKeyStore = ${Plugin_Ssl_Key_Store}" || Logger.Exit Failure "SslKeyStore - ${Plugin_Ssl_Key_Store} does not exist. Please specify SslKeyStore file with -sks parameter. Refer to --help for more information."
-				Plugin_Ssl_Trust_Store="${Plugin_Home}/.ssl/${Plugin_Ssl_Trust_Store}"
-				[ -f "$Plugin_Ssl_Trust_Store" ] && Logger.LogPass "Found SslTrustStore = ${Plugin_Ssl_Trust_Store}" || Logger.Exit Failure "SslTrustStore - ${Plugin_Ssl_Trust_Store} does not exist. Please specify SslTrustStore file with -sts parameter. Refer to --help for more information."
-			}
-			fi
-		
-			if [ "x${Plugin_Host_Name_In_Certificate}" == "x" ];
-			then
-			{
-				if [ "${Plugin_Ssl_Crypto_Provider}" == "commoncrypto" ]; 
-				then
-				{
-					Plugin.RunCommand sapgenpse get_my_name -p "${Plugin_Ssl_Key_Store}" -n Subject 2>&1
-					Plugin_Host_Name_In_Certificate="$(echo "${Plugin_Run_Command_Output}" | grep -E CN= | cut -d '=' -f2 | cut -d ',' -f1)"
-				} 
-				elif [ "${Plugin_Ssl_Crypto_Provider}" == "openssl" ];
-				then 
-				{
-					Plugin.RunCommand openssl x509 -noout -subject -in "${Plugin_Ssl_Trust_Store}" 
-					Plugin_Host_Name_In_Certificate="$(echo "${Plugin_Run_Command_Output}" | sed -e 's/^subject.*CN=\([a-zA-Z0-9\.\-]*\).*$/\1/')"
-				}
-				fi
-			}
-			fi
-
-			[ "x${Plugin_Host_Name_In_Certificate}" != "x" ] && Logger.LogPass "Found SslHostnameInCertificate = ${Plugin_Host_Name_In_Certificate}" || Logger.Exit Failure "No value for SslHostNameInCertificate found. Please specify SslHostNameInCertificate with -sh parameter. Refer to --help for more information."
-		
-			Logger.LogInformation "SSL is configured."
-		}
-		else
-		{
-			Logger.LogInformation "SSL is not configured."
-		}
-		fi
 	}
 
 	Plugin.Remove()
@@ -1375,12 +1197,6 @@ Plugin()
 		[ "x${hostName}" != "x" ] && hdbsqlArgs+=("export" "HDB_USE_IDENT=\"${hostName}\"" "&&")
 		hdbsqlArgs+=("${Plugin_Hdbsql_Path}" -i "${Plugin_Instance_Number}" -n "localhost:${Plugin_Port_Number}")
 		[ "${Plugin_Instance_Type}" == "MDC" ] && hdbsqlArgs+=(-d SYSTEMDB)
-		if [ "${Plugin_Encrypt}" == "true" ];
-		then
-		{
-			hdbsqlArgs+=(-e -sslkeystore "${Plugin_Ssl_Key_Store}" -ssltruststore "${Plugin_Ssl_Trust_Store}" -sslhostnameincert "${Plugin_Host_Name_In_Certificate}" -sslprovider "${Plugin_Ssl_Crypto_Provider}")
-		}
-		fi
 		hdbsqlArgs+=(-U "${keyName}" -xCja "${query}")
 		Plugin.RunCommand "${hdbsqlArgs[@]}"
 		Plugin_Run_Query_Output="${Plugin_Run_Command_Output}"
@@ -1658,13 +1474,7 @@ obj=[
 		'PropertyBag':
 		{
 			'odbcDriverPath': '${Plugin_Driver_Path}',
-			'hdbuserstoreKeyName': '${Plugin_Backup_Key_Name}',
-			'encrypt':'${Plugin_Encrypt}',
-			'sslKeyStore':'${Plugin_Ssl_Key_Store}',
-			'sslTrustStore':'${Plugin_Ssl_Trust_Store}',
-			'sslCryptoProvider':'${Plugin_Ssl_Crypto_Provider}',
-			'sslHostNameInCertificate':'${Plugin_Host_Name_In_Certificate}',
-			'sslValidateCertificate':'${Plugin_Ssl_Validate_Certificate}'
+			'hdbuserstoreKeyName': '${Plugin_Backup_Key_Name}'
 		}
 	}
 ]
@@ -1689,7 +1499,6 @@ with open('${Constant_Plugin_Config_File_Old}', 'w') as config:
 	Plugin.WriteEnvironment()
 	{
 		Logger.LogInformation "Writing to environment file."
-		hostname=$(hostname)
 		Plugin_Host_Environment_File="${Constant_Plugin_Environment_File//\{1\}/${Plugin_Sid,,}}"
 		mkdir -p "$(dirname "${Plugin_Host_Environment_File}")"
 		touch "${Plugin_Host_Environment_File}"
@@ -1698,7 +1507,7 @@ with open('${Constant_Plugin_Config_File_Old}', 'w') as config:
 		if [ "${Plugin_Mode}" == "add" ]
 		then
 		{
-			local result && result="$(printf "%b" "TINSTANCE=${Plugin_Instance_Number}\n" "LD_LIBRARY_PATH=${Plugin_Ld_Library_Path}\n" "SECUDIR=${Plugin_Secudir}\n" "HOME=${Plugin_Home}\n" > ${Plugin_Host_Environment_File})"
+			local result && result="$(printf "%b" "TINSTANCE=${Plugin_Instance_Number}\n" "LD_LIBRARY_PATH=${Plugin_Ld_Library_Path}\n" > ${Plugin_Host_Environment_File})"
 			[ "${?}" -ne "0" ] && Logger.Exit Failure "Failed to write environment file: '${result}'."
 		}
 		elif [ "${Plugin_Mode}" == "remove" ]
@@ -1797,27 +1606,6 @@ with open('${Constant_Plugin_Config_File_Old}', 'w') as config:
 			  -sn, --skip-network-checks
 			    Specify this switch to skip outbound network connectivity checks.
 
-			  -sks SSL_KEY_STORE, --sslkeystore SSL_KEY_STORE
-			    Specify the name of the keystore file that contains the client's identity (eg. sapsrv.pse).
-			    The script will search for the file in the appropriate directory depending on the cryptoprovider mentioned.
-			    If this argument is not provided, it is automatically determined by searching in the configuration files.
-				
-			  -sts SSL_TRUST_STORE, --ssltruststore SSL_TRUST_STORE
-			    Specify the name of the trust store file that contains the server’s public certificates (eg. sapsrv.pse).
-			    The script will search for the file in the appropriate directory depending on the cryptoprovider mentioned.
-			    If this argument is not provided, it is automatically determined by searching in the configuration files.
-
-			  -scp SSL_CRYPTO_PROVIDER, --sslcryptoprovider SSL_CRYPTO_PROVIDER
-			    Specify the cypto provider being used (commoncrypto/openssl).
-			    If this argument is not provided, it is automatically determined by searching in the configuration files.
-
-			  -sh SSL_HOST_NAME_IN_CERTIFICATE, --sslhostnameincertificate SSL_HOST_NAME_IN_CERTIFICATE
-			    Specify the hostname as mentioned in the SSL certificate.
-			    If this argument is not provided, it is automatically determined by searching in the SSL certificate.
-
-			  -svc SSL_VALIDATE_CERTIFICATE, --sslvalidatecertificate
-			    Specify this switch to validate the certificate of the communication partner.
-
 		Plugin_Help_EOF
 		Logger.Exit
 	}
@@ -1899,7 +1687,6 @@ Main()
 			"add")
 			{
 				Check.OS
-				Check.FreeSpace
 				Check.Hostnames
 
 				# RequirePython needs to be at the top of Package.Require
@@ -1927,6 +1714,7 @@ Main()
 				}
 				fi
 
+				Check.FreeSpace
 				Main.CreateGroupIfNotExists
 				Plugin.Run
 			};;

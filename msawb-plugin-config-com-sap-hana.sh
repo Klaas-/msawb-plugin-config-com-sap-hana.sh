@@ -23,7 +23,7 @@ Constant()
 		Constant_Plugin_Host_Service_File="/usr/lib/systemd/system/msawb-pluginhost-${Constant_Plugin_Name}-{1}.service"
 		Constant_Plugin_Host_Service_File_Old="/usr/lib/systemd/system/msawb-pluginhost-saphana-{1}.service"
 
-		Constant_Script_Version="2.0.9.0"
+		Constant_Script_Version="2.0.9.1"
 		Constant_Script_Name="$(basename "${0}")"
 		Constant_Script_Path="$(realpath "${0}")"
 		Constant_Script_Directory="$(dirname "${Constant_Script_Path}")"
@@ -1698,8 +1698,11 @@ with open('${Constant_Plugin_Config_File_Old}', 'w') as config:
 		if [ "${Plugin_Mode}" == "add" ]
 		then
 		{
-			local result && result="$(printf "%b" "TINSTANCE=${Plugin_Instance_Number}\n" "LD_LIBRARY_PATH=${Plugin_Ld_Library_Path}\n" "SECUDIR=${Plugin_Secudir}\n" "HOME=${Plugin_Home}\n" > ${Plugin_Host_Environment_File})"
-			[ "${?}" -ne "0" ] && Logger.Exit Failure "Failed to write environment file: '${result}'."
+			local result
+			[ "x${Plugin_Encrypt}" == "x" ] && result="$(printf "%b" "TINSTANCE=${Plugin_Instance_Number}\n" "LD_LIBRARY_PATH=${Plugin_Ld_Library_Path}\n" > ${Plugin_Host_Environment_File})"
+			[[ "x${Plugin_Encrypt}" == "x" &&  "${?}" -ne "0" ]] && Logger.Exit Failure "Failed to write environment file: '${result}'."
+			[ "x${Plugin_Encrypt}" == "xtrue" ] && result="$(printf "%b" "TINSTANCE=${Plugin_Instance_Number}\n" "LD_LIBRARY_PATH=${Plugin_Ld_Library_Path}\n" "SECUDIR=${Plugin_Secudir}\n" "HOME=${Plugin_Home}\n" > ${Plugin_Host_Environment_File})"
+			[[ "x${Plugin_Encrypt}" == "xtrue" && "${?}" -ne "0" ]] && Logger.Exit Failure "Failed to write environment file: '${result}'."
 		}
 		elif [ "${Plugin_Mode}" == "remove" ]
 		then

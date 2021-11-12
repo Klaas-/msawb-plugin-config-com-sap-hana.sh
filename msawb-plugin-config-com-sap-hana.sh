@@ -23,7 +23,7 @@ Constant()
 		Constant_Plugin_Host_Service_File="/usr/lib/systemd/system/msawb-pluginhost-${Constant_Plugin_Name}-{1}.service"
 		Constant_Plugin_Host_Service_File_Old="/usr/lib/systemd/system/msawb-pluginhost-saphana-{1}.service"
 
-		Constant_Script_Version="2.0.9.2"
+		Constant_Script_Version="2.0.9.1"
 		Constant_Script_Name="$(basename "${0}")"
 		Constant_Script_Path="$(realpath "${0}")"
 		Constant_Script_Directory="$(dirname "${Constant_Script_Path}")"
@@ -694,7 +694,6 @@ Check()
 			[westindia]="https://inwpod01fab1wxsakmfn8.blob.core.windows.net,https://inwpod01fab1wxsakmfn8.queue.core.windows.net,https://pod01-prot1.inw.backup.windowsazure.com"
 			[westus]="https://wuspod01fab1wxsa95jfo.blob.core.windows.net,https://wuspod01fab1wxsa95jfo.queue.core.windows.net,https://pod01-prot1.wus.backup.windowsazure.com"
 			[westus2]="https://wus2pod01fab1wxsata8kz.blob.core.windows.net,https://wus2pod01fab1wxsata8kz.queue.core.windows.net,https://pod01-prot1.wus2.backup.windowsazure.com"
-			[westus3]="https://wus3pod01fab1wxsain5is.blob.core.windows.net,https://wus3pod01fab1wxsain5is.queue.core.windows.net,https://pod01-prot1.wus3.backup.windowsazure.com"
 			[norwayeast]="https://nwepod01fab1wxsa56atw.blob.core.windows.net,https://nwepod01fab1wxsa56atw.queue.core.windows.net,https://pod01-prot1.nwe.backup.windowsazure.com"
 			[norwaywest]="https://nwwpod01fab1wxsacnbvq.blob.core.windows.net,https://nwwpod01fab1wxsacnbvq.queue.core.windows.net,https://pod01-prot1.nww.backup.windowsazure.com"
 		)

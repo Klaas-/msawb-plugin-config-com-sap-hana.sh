@@ -23,7 +23,7 @@ Constant()
 		Constant_Plugin_Host_Service_File="/usr/lib/systemd/system/msawb-pluginhost-${Constant_Plugin_Name}-{1}.service"
 		Constant_Plugin_Host_Service_File_Old="/usr/lib/systemd/system/msawb-pluginhost-saphana-{1}.service"
 
-		Constant_Script_Version="2.0.9.2"
+		Constant_Script_Version="2.0.9.3"
 		Constant_Script_Name="$(basename "${0}")"
 		Constant_Script_Path="$(realpath "${0}")"
 		Constant_Script_Directory="$(dirname "${Constant_Script_Path}")"
@@ -32,6 +32,7 @@ Constant()
 		Constant_Script_Source_Url="https://aka.ms/scriptforpermsonhana"
 
 		Constant_UserHints_SystemKeyCreationMsg="Please create a system key for the system user by running the following command as <sid>adm user\n\n\nfor the mdc machine-\nhdbuserstore set <SYSTEM KEY NAME> localhost:3<INSTANCE_NUMBER>13 SYSTEM '<PASSWORD FOR SYSTEM USER>'\nFor sdc machine -\nhdbuserstore set <SYSTEM KEY NAME> localhost:3<INSTANCE_NUMBER>15 SYSTEM '<PASSWORD FOR SYSTEM USER>'\n\n\nThis system key can be deleted after creation of backup user."
+		Constant_PreRequisitesMsg="Refer to the prerequisites to get started with SAP HANA Backup using Azure - https://docs.microsoft.com/azure/backup/tutorial-backup-sap-hana-db#prerequisites ."
 	}
 }
 
@@ -124,7 +125,7 @@ Logger()
 		}
 		else
 		{
-			Logger.LogMessage "\e[1;31m" "[FAIL]" "${message}"
+			Logger.LogMessage "\e[1;31m" "[FAIL]" "${message}" 
 		}
 		fi
 
@@ -341,7 +342,7 @@ Package()
 
 			libraryCurrentVersion="$(${versionCommand})"
 			libraryExists="$(${searchCommand})"
-			[ ! "${libraryExists}" ] && Logger.Exit Failure "Failed to determine VERSION: Installation failed."
+			[ ! "${libraryExists}" ] && Logger.Exit Failure "Failed to determine VERSION: Installation failed. Please add corresponding library repository for ${libraryName} to continue."
 			
 			Package.VersionCompare "${libraryCurrentVersion}" "${libraryVersionRec}"
 			if [ "${Package_Version_Compare_Result}" -eq "0" ]
@@ -453,7 +454,7 @@ Package()
 				eval "${installCommand}"
 
 				executablePath="$(which "${executableName}" 2> /dev/null)"
-				[ "x${executablePath}" == "x" ] && Logger.Exit Failure "Failed to determine VERSION: Installation failed."
+				[ "x${executablePath}" == "x" ] && Logger.Exit Failure "Failed to determine VERSION: Installation failed. Please add corresponding package repository for ${packageName} to continue."
 
 				packageCurrentVersion="$(${executablePath} --version 2>&1 | tr -s '[:space:]-' ' ' | cut -d ' ' -f 2)"
 				Package.VersionCompare "${packageCurrentVersion}" "${packageVersionRec}"
@@ -527,7 +528,7 @@ Check()
 			RHEL-8.2
 			RHEL-8.4
 		Check_OS_Name_Version_Supported_EOF
-		[ "${?}" -ne "0" ] && Logger.Exit Failure "Found unsupported OS_NAME_VERSION = '${Check_OS_Name_Version}'."
+		[ "${?}" -ne "0" ] && Logger.Exit Failure "Found unsupported OS_NAME_VERSION = '${Check_OS_Name_Version}'.\n${Constant_PreRequisitesMsg}"
 		Logger.LogPass "Found supported OS_NAME_VERSION = '${Check_OS_Name_Version}'."
 	}
 
@@ -707,7 +708,7 @@ Check()
 		else
 		{
 			local serviceUrls="${Check_Service_Urls["${Check_IMDS_VM_Region}"]}"
-			[ "x${serviceUrls}" == "x" ] && Logger.Exit Failure "Feature not yet available in this region."
+			[ "x${serviceUrls}" == "x" ] && Logger.Exit Failure "Feature not yet available in this region.\n${Constant_PreRequisitesMsg}"
 
 			local blobUrl="$(echo "${serviceUrls}" | cut -d "," -f 1)"
 			Check.HttpConnectivity "Blob" "GET" "${blobUrl}" "400"
@@ -725,7 +726,7 @@ Check()
 	{
 		Logger.LogInformation "Checking for free space in '/opt'."
 		local availSpaceInGB="$(df --block-size 1073741824 --output=avail /opt | tail -n 1 | tr -d '[:space:]')"
-		[ "${availSpaceInGB}" -lt "2" ] && Logger.Exit Failure "Found less than 2 GiB space on '/opt'."
+		[ "${availSpaceInGB}" -lt "2" ] && Logger.Exit Failure "Found less than 2 GiB space on '/opt'.\n${Constant_PreRequisitesMsg}"
 		Logger.LogPass "Found at least 2 GiB space on '/opt'."
 	}
 }
@@ -997,11 +998,11 @@ Plugin()
 		Logger.LogInformation "Checking INSTANCE_VERSION support."
 		Plugin_Instance_Version_Major="$(echo "${Plugin_Instance_Version}" | cut -d '.' -f 1)"
 		Logger.LogInformation "Found INSTANCE_VERSION_MAJOR = '${Plugin_Instance_Version_Major}'."
-		[ "${Plugin_Instance_Version_Major}" != "1" ] && [ "${Plugin_Instance_Version_Major}" != "2" ] && Logger.Exit Failure "Unsupported INSTANCE_VERSION_MAJOR."
+		[ "${Plugin_Instance_Version_Major}" != "1" ] && [ "${Plugin_Instance_Version_Major}" != "2" ] && Logger.Exit Failure "Unsupported INSTANCE_VERSION_MAJOR.\n${Constant_PreRequisitesMsg}"
 		Plugin_Instance_Version_SPS="$(expr "$(echo "${Plugin_Instance_Version}" | cut -d '.' -f 3)" / 10)"
 		Logger.LogInformation "Found INSTANCE_VERSION_SPS = '${Plugin_Instance_Version_SPS}'."
-		[ "${Plugin_Instance_Version_Major}" == "1" ] && [ "${Plugin_Instance_Version_SPS}" -lt 9 ] && Logger.Exit Failure "Unsupported INSTANCE_VERSION_MAJOR = '1' and INSTANCE_VERSION_SPS < '9'."
-		[ "${Plugin_Instance_Version_Major}" == "2" ] && [ "${Plugin_Instance_Version_SPS}" -gt 5 ] && Logger.Exit Failure "Unsupported INSTANCE_VERSION_MAJOR = '2' and INSTANCE_VERSION_SPS > '5'."
+		[ "${Plugin_Instance_Version_Major}" == "1" ] && [ "${Plugin_Instance_Version_SPS}" -lt 9 ] && Logger.Exit Failure "Unsupported INSTANCE_VERSION_MAJOR = '1' and INSTANCE_VERSION_SPS < '9'.\n${Constant_PreRequisitesMsg}"
+		[ "${Plugin_Instance_Version_Major}" == "2" ] && [ "${Plugin_Instance_Version_SPS}" -gt 6 ] && Logger.Exit Failure "Unsupported INSTANCE_VERSION_MAJOR = '2' and INSTANCE_VERSION_SPS > '6'.\n${Constant_PreRequisitesMsg}"
 		Logger.LogPass "Supported INSTANCE_VERSION."
 
 		Logger.LogInformation "Determining DRIVER_PATH."

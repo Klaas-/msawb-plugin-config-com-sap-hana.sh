@@ -23,7 +23,7 @@ Constant()
 		Constant_Plugin_Host_Service_File="/usr/lib/systemd/system/msawb-pluginhost-${Constant_Plugin_Name}-{1}.service"
 		Constant_Plugin_Host_Service_File_Old="/usr/lib/systemd/system/msawb-pluginhost-saphana-{1}.service"
 
-		Constant_Script_Version="2.0.9.4"
+		Constant_Script_Version="2.0.9.3"
 		Constant_Script_Name="$(basename "${0}")"
 		Constant_Script_Path="$(realpath "${0}")"
 		Constant_Script_Directory="$(dirname "${Constant_Script_Path}")"
@@ -654,10 +654,8 @@ Check()
 			[centralus]="https://cuspod01fab1wxsar4zyr.blob.core.windows.net,https://cuspod01fab1wxsar4zyr.queue.core.windows.net,https://pod01-prot1.cus.backup.windowsazure.com"
 			[chinaeast]="https://shapod01fab1wxsad4ak9.blob.core.chinacloudapi.cn,https://shapod01fab1wxsad4ak9.queue.core.chinacloudapi.cn,https://pod01-prot1.sha.backup.windowsazure.cn"
 			[chinaeast2]="https://sha2pod01fab1wxsai042v.blob.core.chinacloudapi.cn,https://sha2pod01fab1wxsai042v.queue.core.chinacloudapi.cn,https://pod01-prot1.sha2.backup.windowsazure.cn"
-			[chinaeast3]="https://sha3pod01fab1wxsaq50bi.blob.core.chinacloudapi.cn,https://sha3pod01fab1wxsaq50bi.queue.core.chinacloudapi.cn,https://pod01-prot1.sha3.backup.windowsazure.cn"
 			[chinanorth]="https://bjbpod01fab1wxsa93erj.blob.core.chinacloudapi.cn,https://bjbpod01fab1wxsa93erj.queue.core.chinacloudapi.cn,https://pod01-prot1.bjb.backup.windowsazure.cn"
 			[chinanorth2]="https://bjb2pod01fab1wxsa5pys4.blob.core.chinacloudapi.cn,https://bjb2pod01fab1wxsa5pys4.queue.core.chinacloudapi.cn,https://pod01-prot1.bjb2.backup.windowsazure.cn"
-			[chinanorth3]="https://bjb3pod01fab1wxsaohap6.blob.core.chinacloudapi.cn,https://bjb3pod01fab1wxsaohap6.queue.core.chinacloudapi.cn,https://pod01-prot1.bjb3.backup.windowsazure.cn"
 			[eastasia]="https://eapod01fab1wxsaa7o8l.blob.core.windows.net,https://eapod01fab1wxsaa7o8l.queue.core.windows.net,https://pod01-prot1.ea.backup.windowsazure.com"
 			[eastus]="https://euspod01fab1wxsanhice.blob.core.windows.net,https://euspod01fab1wxsanhice.queue.core.windows.net,https://pod01-prot1.eus.backup.windowsazure.com"
 			[eastus2]="https://eus2pod01fab1wxsadqy6r.blob.core.windows.net,https://eus2pod01fab1wxsadqy6r.queue.core.windows.net,https://pod01-prot1.eus2.backup.windowsazure.com"
@@ -763,10 +761,6 @@ Plugin()
 		Plugin_Ssl_Validate_Certificate=""
 		Plugin_Secudir=""
 		Plugin_Home=""
-		Plugin_HSR_Unique_Value=""
-		Plugin_HSR_Primary="0"
-		Plugin_IsHSRAlreadyRegistered="0"
-		Plugin_AD_User="false"
 	}
 
 	Plugin.Parse()
@@ -883,12 +877,6 @@ Plugin()
 					Plugin_Ssl_Validate_Certificate="true"
 				};;
 
-				"-ad" | "--ad-user")
-				{
-					shift
-					Plugin_AD_User="true"
-				};;
-
 				*)
 				{
 					Logger.Exit Argument_Unknown "${1}"
@@ -919,8 +907,6 @@ Plugin()
 
 		Plugin.ReadConfig
 
-		Plugin.CheckHSRAlreadyRegistered
-
 		if [ "x${Plugin_Config_Sid}" != "x" ]
 		then
 		{
@@ -938,8 +924,6 @@ Plugin()
 			fi
 		}
 		fi
-
-		[[ "${Plugin_IsHSRAlreadyRegistered}" -ne "0" && "x${Plugin_HSR_Unique_Value}" == "x" ]] && Logger.Exit Failure "This VM is registered as HSR instance. Please do stop protection for HSR instance and then run pre-registration script in standalone mode."
 
 		if [ "x${Plugin_Sid}" == "x" ]
 		then
@@ -988,87 +972,22 @@ Plugin()
 		[ "x${Plugin_System_Host_Name}" == "x" ] && Logger.Exit Failure "Failed to determine HOSTNAME for the SAPHana Instance."
 		Logger.LogPass "Found Hostname = '${Plugin_System_Host_Name}'."
 
-		if [ "x${Plugin_HSR_Unique_Value}" == "x" ]
-		then
+		Logger.LogInformation "Determining PORT_NUMBER."
+		Plugin_Port_Number="$(awk -F '[: \t]+' '{gsub(/^[ \t]+/,"",$0)} $6=="0A" && $12=="'"$(id -u "${Plugin_User}")"'" {print $3}' /proc/net/tcp |\
+		while read portNum
+		do
 		{
-			Logger.LogInformation "Determining PORT_NUMBER."
-			Plugin_Port_Number="$(awk -F '[: \t]+' '{gsub(/^[ \t]+/,"",$0)} $6=="0A" && $12=="'"$(id -u "${Plugin_User}")"'" {print $3}' /proc/net/tcp |\
-			while read portNum
-			do
-			{
-				echo "$((0x${portNum}))"
-			}
-			done | grep "^3${Plugin_Instance_Number}1[35]\$" | sort | head -n 1)"
-			[ "x${Plugin_Port_Number}" == "x" ] && Logger.Exit Failure "Failed to determine PORT_NUMBER: Please ensure the index server is running on the SQL port."
-			Logger.LogPass "Found PORT_NUMBER = '${Plugin_Port_Number}'."
-
-			Logger.LogInformation "Determining INSTANCE_TYPE."
-			[ "${Plugin_Port_Number: -2}" == "13" ] && Plugin_Instance_Type="MDC"
-			[ "${Plugin_Port_Number: -2}" == "15" ] && Plugin_Instance_Type="SDC"
-			[ "x${Plugin_Instance_Type}" == "x" ] && Logger.Exit Failure "Failed to determine INSTANCE_TYPE: Please ensure the index server is running on the SQL port."
-			Logger.LogPass "Found INSTANCE_TYPE = '${Plugin_Instance_Type}'."
-
-			Plugin.RunCommand "/usr/sap/${Plugin_Sid}/HDB${Plugin_Instance_Number}/exe/hdbnsutil" -sr_state
-			local mode="$(echo "${Plugin_Run_Command_Output}" | grep -E '^mode:' | cut -d ' ' -f'2')"
-			if [[ "x${mode}" == "xprimary" || "x${mode}" == "xnone" ]]; then
-			{
-				Plugin_HSR_Primary="1"
-			}
-			fi
-			Logger.LogInformation "Mode is : '${mode}' and Plugin_HSR_Primary : '${Plugin_HSR_Primary}'."
-
+			echo "$((0x${portNum}))"
 		}
-		else
-		{
+		done | grep "^3${Plugin_Instance_Number}1[35]\$" | sort | head -n 1)"
+		[ "x${Plugin_Port_Number}" == "x" ] && Logger.Exit Failure "Failed to determine PORT_NUMBER: Please ensure the index server is running on the SQL port."
+		Logger.LogPass "Found PORT_NUMBER = '${Plugin_Port_Number}'."
 
-			local isProvidedHSRuniqueValueGood="false"
-			[[ ${#Plugin_HSR_Unique_Value} -ge 6 && ${#Plugin_HSR_Unique_Value} -lt 35 && "$Plugin_HSR_Unique_Value" == *[A-Z]* && "$Plugin_HSR_Unique_Value" == [A-Za-z]* && "$Plugin_HSR_Unique_Value" == *[a-z]* && "$Plugin_HSR_Unique_Value" == *[0-9]* ]] && isProvidedHSRuniqueValueGood="true"
-			[ "x${isProvidedHSRuniqueValueGood}" == "xfalse" ] && Logger.LogError "Please provide unique alphanumeric value for HSR instance containing atleast One upper case,one small case and one numeric digit. It should be greater or equal then 6 letter and less then 35 letter."
-
-			Plugin.RunCommand "/usr/sap/${Plugin_Sid}/HDB${Plugin_Instance_Number}/exe/hdbnsutil" -sr_state
-			local mode="$(echo "${Plugin_Run_Command_Output}" | grep -E '^mode:' | cut -d ' ' -f'2')"
-			if [[ "x${mode}" == "xprimary" || "x${mode}" == "xnone" ]]; then
-			{
-				Plugin_HSR_Primary="1"
-			}
-			fi
-			Logger.LogInformation "Mode is : '${mode}' and Plugin_HSR_Primary : '${Plugin_HSR_Primary}'."
-
-			if [ "${Plugin_HSR_Primary}" -eq "0" ]
-			then
-			{
-				[ "x${Plugin_Port_Number}" == "x" ] && Logger.Exit Failure "For HSR configuration for secondary system please provide the port number. Check -h option."
-
-				Logger.LogInformation "Determining INSTANCE_TYPE."
-				[ "${Plugin_Port_Number: -2}" == "13" ] && Plugin_Instance_Type="MDC"
-				[ "${Plugin_Port_Number: -2}" == "15" ] && Plugin_Instance_Type="SDC"
-				[ "x${Plugin_Instance_Type}" == "x" ] && Logger.Exit Failure "Failed to determine INSTANCE_TYPE: Please ensure the index server is running on the SQL port."
-				Logger.LogPass "Found INSTANCE_TYPE = '${Plugin_Instance_Type}'."
-
-			}
-			else
-			{
-				Logger.LogInformation "Determining PORT_NUMBER."
-				Plugin_Port_Number="$(awk -F '[: \t]+' '{gsub(/^[ \t]+/,"",$0)} $6=="0A" && $12=="'"$(id -u "${Plugin_User}")"'" {print $3}' /proc/net/tcp |\
-				while read portNum
-				do
-				{
-					echo "$((0x${portNum}))"
-				}
-				done | grep "^3${Plugin_Instance_Number}1[35]\$" | sort | head -n 1)"
-				[ "x${Plugin_Port_Number}" == "x" ] && Logger.Exit Failure "Failed to determine PORT_NUMBER: Please ensure the index server is running on the SQL port."
-				Logger.LogPass "Found PORT_NUMBER = '${Plugin_Port_Number}'."
-
-				Logger.LogInformation "Determining INSTANCE_TYPE."
-				[ "${Plugin_Port_Number: -2}" == "13" ] && Plugin_Instance_Type="MDC"
-				[ "${Plugin_Port_Number: -2}" == "15" ] && Plugin_Instance_Type="SDC"
-				[ "x${Plugin_Instance_Type}" == "x" ] && Logger.Exit Failure "Failed to determine INSTANCE_TYPE: Please ensure the index server is running on the SQL port."
-				Logger.LogPass "Found INSTANCE_TYPE = '${Plugin_Instance_Type}'."
-			}
-			fi
-
-		}
-		fi
+		Logger.LogInformation "Determining INSTANCE_TYPE."
+		[ "${Plugin_Port_Number: -2}" == "13" ] && Plugin_Instance_Type="MDC"
+		[ "${Plugin_Port_Number: -2}" == "15" ] && Plugin_Instance_Type="SDC"
+		[ "x${Plugin_Instance_Type}" == "x" ] && Logger.Exit Failure "Failed to determine INSTANCE_TYPE: Please ensure the index server is running on the SQL port."
+		Logger.LogPass "Found INSTANCE_TYPE = '${Plugin_Instance_Type}'."
 
 		Logger.LogInformation "Determining INSTANCE_VERSION."
 		Plugin.RunCommand "/usr/sap/${Plugin_Sid}/HDB${Plugin_Instance_Number}/HDB" version
@@ -1137,19 +1056,6 @@ Plugin()
 		if [ "x${Plugin_Backup_Key_Name}" == "x" ]
 		then
 		{
-
-			Logger.LogInformation "Checking HSR unique value."
-			if [ "x${Plugin_HSR_Unique_Value}" == "x" ]
-			then
-			{
-				Logger.LogInformation "Pre-reg script is run for standalone system. Continuing..."
-			}
-			else
-			{
-				Logger.Exit Failure "HSR Configuration requires custom backup key, please re-run with custome backup key"
-			}
-			fi
-
 			Logger.LogInformation "Determining BACKUP_KEY_NAME."
 			Plugin.FindKeyByUser "${Constant_Plugin_Default_Backup_Key_User}" "$(hostname)"
 
@@ -1197,17 +1103,8 @@ Plugin()
 		if [ "${Plugin_Backup_Key_Exists}" -eq "1" ]
 		then
 		{
-			if [[ "${Plugin_HSR_Primary}" -eq "1" || "x${Plugin_HSR_Unique_Value}" == "x" ]]
-			then
-			{
-				Plugin.LoginUser
-				Plugin_Backup_Key_Exists="${Plugin_Login_User_Result}"
-			}
-			else
-			{
-				Logger.LogWarning "Skipping user checking for secondary node in HSR configuration."
-			}
-			fi
+			Plugin.LoginUser
+			Plugin_Backup_Key_Exists="${Plugin_Login_User_Result}"
 		}
 		fi
 
@@ -1226,22 +1123,12 @@ Plugin()
 		}
 		else
 		{
-			if [[ "${Plugin_HSR_Primary}" -eq "1" || "x${Plugin_HSR_Unique_Value}" == "x" ]]
-			then
-			{
-				Plugin.CheckSystemOverview
-				Plugin.CheckUser
-			}
-			else
-			{
-				Logger.LogWarning "Skipping user and system overview checking for secondary node in HSR configuration."
-			}
-			fi
-
+			Plugin.CheckSystemOverview
+			Plugin.CheckUser
 		}
 		fi
 
-		if [[ "${Plugin_Check_User_Result}" != "1" && "${Plugin_HSR_Primary}" -eq "1" ]]
+		if [ "${Plugin_Check_User_Result}" != "1" ]
 		then
 		{
 			[ "x${Plugin_System_Key_Name}" == "x" ] && Logger.Exit Failure "Need a valid system key to repair the backup key.\n${Constant_UserHints_SystemKeyCreationMsg}"
@@ -1249,38 +1136,11 @@ Plugin()
 			Plugin.CheckUser
 			[ "${Plugin_Check_User_Result}" != "1" ] && Logger.Exit Failure "Failed to grant backup privileges to backup user."
 		}
-		else
-		{
-			[[ "${Plugin_HSR_Primary}" -eq "0" && "x${Plugin_HSR_Unique_Value}" != "x" ]] && Logger.LogWarning "Skipping grant and user checking for secondary node in HSR configuration."
-		}
 		fi
 
-		# TODO: Remove use of isADUser key in config 
-		if [ "x${Plugin_AD_User}" == "xfalse" ]
-		then
-		{
-			Plugin.AddSupplementaryGroupToUser
-		}
-		else
-		{
-			Logger.LogWarning "Skipping adding '${Plugin_User}' user to local '${Constant_Msawb_Group_Secondary}' group."
-			Plugin.CheckIfUserIsAddedToGroup
-		}
-		fi
-
+		Plugin.AddSupplementaryGroupToUser
 		Plugin.WriteConfig
 		Plugin.WriteEnvironment
-	}
-
-	# TODO: Check if this will work when system is protected as standalone and then stop protected later
-	Plugin.CheckHSRAlreadyRegistered()
-	{
-		if [ -d "/opt/msawb/var/lib/catalog/RegisteredObjectInfoCatalog/RegisteredObjectInfoTable/" ]; then
-			local result && result="$(find /opt/msawb/var/lib/catalog/RegisteredObjectInfoCatalog/RegisteredObjectInfoTable/ -type f -name '*.bin' -exec grep -i '\"ObjectType\": 2' {} \; | wc -l)"
-			[ "${?}" -eq "0" ] && Plugin_IsHSRAlreadyRegistered=${result}
-			[ "${Plugin_IsHSRAlreadyRegistered}" -eq "0" ] && Logger.LogInformation "HSR instance not registered on this VM."
-			[ "${Plugin_IsHSRAlreadyRegistered}" -ne "0" ] && Logger.LogInformation "HSR instance registered on this VM."
-		fi
 	}
 
 	Plugin.SslConfig()
@@ -1304,9 +1164,7 @@ Plugin()
 		then
 		{
 			Plugin_Secudir="/usr/sap/${Plugin_Sid}/HDB${Plugin_Instance_Number}/${hostname,,}/sec"
-			Plugin.RunCommand echo "\$HOME"
-			[ "x${Plugin_Run_Command_Status}" != "x0" ] && Logger.Exit Failure "Failed to determine HOME variable for '${Plugin_User}'."
-			Plugin_Home="${Plugin_Run_Command_Output}"
+			Plugin_Home="/usr/sap/${Plugin_Sid}/home"
 
 			Plugin_Encrypt="true"
 			
@@ -1369,18 +1227,18 @@ Plugin()
 
 			if [ "${Plugin_Ssl_Crypto_Provider}" == "commoncrypto" ]; 
 			then 
-			{	
-				[ ! -f "$Plugin_Ssl_Key_Store" ] && Plugin_Ssl_Key_Store="${Plugin_Secudir}/${Plugin_Ssl_Key_Store}"
+			{
+				Plugin_Ssl_Key_Store="${Plugin_Secudir}/${Plugin_Ssl_Key_Store}"
 				[ -f "$Plugin_Ssl_Key_Store" ] && Logger.LogPass "Found SslKeyStore = ${Plugin_Ssl_Key_Store}" || Logger.Exit Failure "SslKeyStore - ${Plugin_Ssl_Key_Store} does not exist. Please specify SslKeyStore file with -sks parameter. Refer to --help for more information."
-				[ ! -f "$Plugin_Ssl_Trust_Store" ] && Plugin_Ssl_Trust_Store="${Plugin_Secudir}/${Plugin_Ssl_Trust_Store}"
+				Plugin_Ssl_Trust_Store="${Plugin_Secudir}/${Plugin_Ssl_Trust_Store}"
 				[ -f "$Plugin_Ssl_Trust_Store" ] && Logger.LogPass "Found SslTrustStore = ${Plugin_Ssl_Trust_Store}" || Logger.Exit Failure "SslTrustStore - ${Plugin_Ssl_Trust_Store} does not exist. Please specify SslTrustStore file with -sts parameter. Refer to --help for more information."
 			
 			} elif [ "${Plugin_Ssl_Crypto_Provider}" == "openssl" ];
 			then
 			{
-				[ ! -f "$Plugin_Ssl_Key_Store" ] && Plugin_Ssl_Key_Store="${Plugin_Home}/.ssl/${Plugin_Ssl_Key_Store}"
+				Plugin_Ssl_Key_Store="${Plugin_Home}/.ssl/${Plugin_Ssl_Key_Store}"
 				[ -f "$Plugin_Ssl_Key_Store" ] && Logger.LogPass "Found SslKeyStore = ${Plugin_Ssl_Key_Store}" || Logger.Exit Failure "SslKeyStore - ${Plugin_Ssl_Key_Store} does not exist. Please specify SslKeyStore file with -sks parameter. Refer to --help for more information."
-				[ ! -f "$Plugin_Ssl_Trust_Store" ] && Plugin_Ssl_Trust_Store="${Plugin_Home}/.ssl/${Plugin_Ssl_Trust_Store}"
+				Plugin_Ssl_Trust_Store="${Plugin_Home}/.ssl/${Plugin_Ssl_Trust_Store}"
 				[ -f "$Plugin_Ssl_Trust_Store" ] && Logger.LogPass "Found SslTrustStore = ${Plugin_Ssl_Trust_Store}" || Logger.Exit Failure "SslTrustStore - ${Plugin_Ssl_Trust_Store} does not exist. Please specify SslTrustStore file with -sts parameter. Refer to --help for more information."
 			}
 			fi
@@ -1417,9 +1275,6 @@ Plugin()
 
 	Plugin.Remove()
 	{
-		# TODO: Fix the remove command
-		Logger.LogWarning "To register a new SID, please move the config.json file located at ${Constant_Plugin_Config_File_Old} and re-run the script with the --add and --sid command instead."
-
 		Plugin.ReadConfig
 
 		[ "x${Plugin_Config_Sid}" == "x" ] && Logger.Exit Failure "No SID to remove found in configuration."
@@ -1600,8 +1455,7 @@ Plugin()
 		Logger.LogInformation "Deleting BACKUP_KEY_NAME = '${Plugin_Backup_Key_Name}'."
 		Plugin.RunCommand unset HDB_USE_IDENT "&&" "${Plugin_Hdbuserstore_Path}" -H "$(hostname)" DELETE "${Plugin_Backup_Key_Name}"
 		local deleteKeyResult="${Plugin_Run_Command_Output}"
-		local deleteKeyStatus="${Plugin_Run_Command_Status}"
-		if [ "x${deleteKeyResult}" != "x" ] && [ "x${deleteKeyStatus}" != "x0" ]
+		if [ "x${deleteKeyResult}" != "x" ]
 		then
 		{
 			Logger.LogWarning "Failed to delete BACKUP_KEY_NAME: '${deleteKeyResult}'."
@@ -1625,8 +1479,7 @@ Plugin()
 		Logger.LogInformation "Creating BACKUP_KEY_NAME = '${Plugin_Backup_Key_Name}'."
 		Plugin.RunCommand unset HDB_USE_IDENT "&&" "${Plugin_Hdbuserstore_Path}" -H "$(hostname)" SET "${Plugin_Backup_Key_Name}" "localhost:${Plugin_Port_Number}" "${Plugin_Backup_Key_User}" "${userPassword}"
 		local createKeyResult="${Plugin_Run_Command_Output}"
-		local createKeyStatus="${Plugin_Run_Command_Status}"
-		[[ "x${createKeyResult}" != "x" && "x${createKeyStatus}" != "x0" ]] && Logger.Exit Failure "Failed to create BACKUP_KEY_NAME: '${createKeyResult}'."
+		[ "x${createKeyResult}" != "x" ] && Logger.Exit Failure "Failed to create BACKUP_KEY_NAME: '${createKeyResult}'."
 		Logger.LogPass "Created BACKUP_KEY_NAME."
 	}
 
@@ -1684,12 +1537,6 @@ Plugin()
 		[ "${Plugin_Instance_Type}" == "MDC" ] && Plugin.GrantPrivilege "DATABASE ADMIN"
 		[ "${Plugin_Instance_Type}" == "SDC" ] && Plugin.GrantPrivilege "BACKUP ADMIN"
 		Plugin.GrantPrivilege "CATALOG READ"
-		if [ "${Plugin_HSR_Primary}" -eq "1" ]
-		then
-		{
-			Plugin.GrantPrivilege "INIFILE ADMIN"
-		}
-		fi
 		Package.VersionCompare "${Plugin_Instance_Version}" "${Constant_Plugin_Min_Version_SAP_INTERNAL_HANA_SUPPORT_NOT_Required}"
 		if [ "${Package_Version_Compare_Result}" -ne "0" ]
 		then
@@ -1762,15 +1609,6 @@ Plugin()
 			[ "${Plugin_Check_User_Result}" -eq "0" ] && return
 		}
 		fi
-		if [ "${Plugin_HSR_Primary}" -eq "1" ]
-		then
-		{
-			Plugin.CheckPrivilege "INIFILE ADMIN" "SELECT TOP 1 GRANTEE FROM EFFECTIVE_PRIVILEGE_GRANTEES WHERE OBJECT_TYPE = 'SYSTEMPRIVILEGE' AND PRIVILEGE = 'INIFILE ADMIN' AND GRANTEE ='${Plugin_Backup_Key_User}'" "true"
-			Plugin_Check_User_Result="${Plugin_Check_Privilege_Result}"
-			[ "${Plugin_Check_User_Result}" -eq "0" ] && return
-		}
-		fi
-
 
 		[ "${Plugin_Instance_Type}" == "MDC" ] &&  Plugin.CheckPrivilege "DATABASE ADMIN" "SELECT TOP 1 GRANTEE FROM EFFECTIVE_PRIVILEGE_GRANTEES WHERE OBJECT_TYPE = 'SYSTEMPRIVILEGE' AND PRIVILEGE = 'DATABASE ADMIN' AND GRANTEE ='${Plugin_Backup_Key_User}'" "true"
 		Plugin_Check_User_Result="${Plugin_Check_Privilege_Result}"
@@ -1813,8 +1651,7 @@ Plugin()
 		then
 		{
 
-			local result
-			[ "x${Plugin_HSR_Unique_Value}" == "x" ] && result="$("${Package_Python_Executable}" -c "
+			local result && result="$("${Package_Python_Executable}" -c "
 import json
 obj=[
 	{
@@ -1829,8 +1666,7 @@ obj=[
 			'sslTrustStore':'${Plugin_Ssl_Trust_Store}',
 			'sslCryptoProvider':'${Plugin_Ssl_Crypto_Provider}',
 			'sslHostNameInCertificate':'${Plugin_Host_Name_In_Certificate}',
-			'sslValidateCertificate':'${Plugin_Ssl_Validate_Certificate}',
-			'isADUser':'${Plugin_AD_User}'
+			'sslValidateCertificate':'${Plugin_Ssl_Validate_Certificate}'
 		}
 	}
 ]
@@ -1838,35 +1674,7 @@ with open('${Constant_Plugin_Config_File_Old}', 'w') as config:
 	json.dump(obj, config, indent = 4, sort_keys = True)
 " 2>&1)"
 
-			[[ "x${Plugin_HSR_Unique_Value}" == "x" &&  "${?}" -ne "0" ]] && Logger.Exit Failure "Failed to write configuration: '${result}'."
-
-			[ "x${Plugin_HSR_Unique_Value}" != "x" ] && result="$("${Package_Python_Executable}" -c "
-import json
-obj=[
-	{
-		'LogicalContainerId': '${Plugin_Sid}',
-		'LogicalContainerOSUser' : '${Plugin_User}',
-		'LogicalContainerHSRGuid' : '${Plugin_HSR_Unique_Value}',
-		'PropertyBag':
-		{
-			'odbcDriverPath': '${Plugin_Driver_Path}',
-			'hdbuserstoreKeyName': '${Plugin_Backup_Key_Name}',
-			'encrypt':'${Plugin_Encrypt}',
-			'sslKeyStore':'${Plugin_Ssl_Key_Store}',
-			'sslTrustStore':'${Plugin_Ssl_Trust_Store}',
-			'sslCryptoProvider':'${Plugin_Ssl_Crypto_Provider}',
-			'sslHostNameInCertificate':'${Plugin_Host_Name_In_Certificate}',
-			'sslValidateCertificate':'${Plugin_Ssl_Validate_Certificate}',
-			'isADUser':'${Plugin_AD_User}'
-		}
-	}
-]
-with open('${Constant_Plugin_Config_File_Old}', 'w') as config:
-	json.dump(obj, config, indent = 4, sort_keys = True)
-" 2>&1)"
-
-			[[ "x${Plugin_HSR_Unique_Value}" != "x" &&  "${?}" -ne "0" ]] && Logger.Exit Failure "Failed to write configuration: '${result}'."
-
+			[ "${?}" -ne "0" ] && Logger.Exit Failure "Failed to write configuration: '${result}'."
 		}
 		elif [ "${Plugin_Mode}" == "remove" ]
 		then
@@ -1914,14 +1722,6 @@ with open('${Constant_Plugin_Config_File_Old}', 'w') as config:
 		local result && result="$(gpasswd --add "${Plugin_User}" "${Constant_Msawb_Group_Secondary}" 2>&1)"
 		[ "${?}" -eq "0" ] && Logger.LogPass "Successfully added user." && return
 		Logger.Exit Failure "Failed to add user: '${result}'."
-	}
-
-	Plugin.CheckIfUserIsAddedToGroup()
-	{
-		Logger.LogInformation "Checking if user '${Plugin_User}' is added to group '${Constant_Msawb_Group_Secondary}'."
-		local result && result="$(id "${Plugin_User}" | grep -o "${Constant_Msawb_Group_Secondary}" 2>&1)"
-		[ "${?}" -eq "0" ] && [ "${result}" == "${Constant_Msawb_Group_Secondary}" ] && Logger.LogPass "User is already added to group." && return
-		Logger.Exit Failure "AD user '${Plugin_User}' is not added to ${Constant_Msawb_Group_Secondary} group. Create a group '${Constant_Msawb_Group_Secondary}' in your active directory, add '${Plugin_User}' to it and re-run the script with -ad option."
 	}
 
 	Plugin.RemoveSupplementaryGroupFromUser()
@@ -2022,11 +1822,6 @@ with open('${Constant_Plugin_Config_File_Old}', 'w') as config:
 
 			  -svc SSL_VALIDATE_CERTIFICATE, --sslvalidatecertificate
 			    Specify this switch to validate the certificate of the communication partner.
-
-			  -ad AD_USER, --ad-user AD_USER
-			    Specify this switch if HANA is installed with an AD <sid>adm user.
-			    Create an AD '${Constant_Msawb_Group_Secondary}' group in your active directory and add the <sid>adm user to the '${Constant_Msawb_Group_Secondary}' group before
-			    running the script using this option.  
 
 		Plugin_Help_EOF
 		Logger.Exit
@@ -2137,17 +1932,7 @@ Main()
 				}
 				fi
 
-				if [ "x${Plugin_AD_User}" == "xfalse" ]
-				then
-				{
-					Main.CreateGroupIfNotExists
-				}
-				else
-				{
-					Logger.LogWarning "Skipping creation of '${Constant_Msawb_Group_Secondary}' group."
-				}
-				fi
-
+				Main.CreateGroupIfNotExists
 				Plugin.Run
 			};;
 

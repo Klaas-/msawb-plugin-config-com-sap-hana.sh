@@ -8,6 +8,7 @@ Constant()
 		Constant_Msawb_Group="root"
 		Constant_Msawb_Group_Secondary="msawb"
 		Constant_Msawb_Home="/opt/msawb"
+		Constant_Handler_Location="/var/lib/waagent"
 
 		Constant_Plugin_Name="com-sap-hana"
 		Constant_Plugin_Default_Backup_Key_Name="AZUREWLBACKUPHANAUSER"
@@ -23,7 +24,7 @@ Constant()
 		Constant_Plugin_Host_Service_File="/usr/lib/systemd/system/msawb-pluginhost-${Constant_Plugin_Name}-{1}.service"
 		Constant_Plugin_Host_Service_File_Old="/usr/lib/systemd/system/msawb-pluginhost-saphana-{1}.service"
 
-		Constant_Script_Version="2.0.9.4"
+		Constant_Script_Version="2.0.9.5"
 		Constant_Script_Name="$(basename "${0}")"
 		Constant_Script_Path="$(realpath "${0}")"
 		Constant_Script_Directory="$(dirname "${Constant_Script_Path}")"
@@ -673,6 +674,7 @@ Check()
 			[koreasouth]="https://krspod01fab1wxsak15a6.blob.core.windows.net,https://krspod01fab1wxsak15a6.queue.core.windows.net,https://pod01-prot1.krs.backup.windowsazure.com"
 			[northcentralus]="https://ncuspod01fab1wxsac19bc.blob.core.windows.net,https://ncuspod01fab1wxsac19bc.queue.core.windows.net,https://pod01-prot1.ncus.backup.windowsazure.com"
 			[northeurope]="https://nepod01fab1wxsag8ksw.blob.core.windows.net,https://nepod01fab1wxsag8ksw.queue.core.windows.net,https://pod01-prot1.ne.backup.windowsazure.com"
+			[qatarcentral]="https://qacpod01fab1wxsafxfxi.blob.core.windows.net,https://qacpod01fab1wxsafxfxi.queue.core.windows.net,https://pod01-prot1.qac.backup.windowsazure.com"
 			[southafricanorth]="https://sanpod01fab1wxsaqslgm.blob.core.windows.net,https://sanpod01fab1wxsaqslgm.queue.core.windows.net,https://pod01-prot1.san.backup.windowsazure.com"
 			[southafricawest]="https://sawpod01fab1wxsaor9bk.blob.core.windows.net,https://sawpod01fab1wxsaor9bk.queue.core.windows.net,https://pod01-prot1.saw.backup.windowsazure.com"
 			[southcentralus]="https://scuspod01fab1wxsaojuir.blob.core.windows.net,https://scuspod01fab1wxsaojuir.queue.core.windows.net,https://pod01-prot1.scus.backup.windowsazure.com"
@@ -726,9 +728,22 @@ Check()
 
 	Check.FreeSpace()
 	{
+		Logger.LogInformation "Checking for free space in '${Constant_Handler_Location}'."
+		local availSpaceInMB="$(df --block-size 1048576 --output=avail ${Constant_Handler_Location} | tail -n 1 | tr -d '[:space:]')"
+		[ "${availSpaceInMB}" -lt "300" ] && Logger.Exit Failure "Found less than 300 MiB space on '${Constant_Handler_Location}'.\n${Constant_PreRequisitesMsg}"
+		Logger.LogPass "Found at least 300 MiB space on '${Constant_Handler_Location}'."
+
 		Logger.LogInformation "Checking for free space in '/opt'."
 		local availSpaceInGB="$(df --block-size 1073741824 --output=avail /opt | tail -n 1 | tr -d '[:space:]')"
 		[ "${availSpaceInGB}" -lt "2" ] && Logger.Exit Failure "Found less than 2 GiB space on '/opt'.\n${Constant_PreRequisitesMsg}"
+		if [ "${availSpaceInGB}" -lt "4" ]
+		then
+		{
+			local rootPartition="$(df / | awk '/^\/dev/ {print $1}')"
+			local msawbPartition="$(df ${Constant_Msawb_Home} | awk '/^\/dev/ {print $1}')"
+			[[ "$rootPartition" == "$msawbPartition" ]] && Logger.LogWarning "Note that the ${Constant_Msawb_Home} folder is in the root partition which has less than 4 GB available in size - this could lead to the root partition getting full and failing the backups.\nWe recommend you to either increase the available size of root partition to 4 GB or move the ${Constant_Msawb_Home} folder to another partition in the HANA system later."
+		}
+		fi
 		Logger.LogPass "Found at least 2 GiB space on '/opt'."
 	}
 }
@@ -1146,7 +1161,7 @@ Plugin()
 			}
 			else
 			{
-				Logger.Exit Failure "HSR Configuration requires custom backup key, please re-run with custome backup key"
+				Logger.Exit Failure "HSR Configuration requires custom backup key, please re-run with custom backup key."
 			}
 			fi
 
@@ -1417,24 +1432,169 @@ Plugin()
 
 	Plugin.Remove()
 	{
-		# TODO: Fix the remove command
-		Logger.LogWarning "To register a new SID, please move the config.json file located at ${Constant_Plugin_Config_File_Old} and re-run the script with the --add and --sid command instead."
-
 		Plugin.ReadConfig
 
 		[ "x${Plugin_Config_Sid}" == "x" ] && Logger.Exit Failure "No SID to remove found in configuration."
 		[ "x${Plugin_Sid}" == "x" ] && Logger.Exit Failure "The '--sid' option is mandatory for the '--remove' command."
 		[ "${Plugin_Config_Sid}" != "${Plugin_Sid}" ] && Logger.Exit Failure "The specified SID is not present in the configuration."
 
+		if [ "x${Plugin_Instance_Number}" == "x" ]
+		then
+		{
+			Logger.LogInformation "Determining INSTANCE_NUMBER."
+			Plugin_Instance_Number="$(ls /usr/sap/${Plugin_Sid} | grep -E "^HDB[0-9]{2}$" | cut -c4- | head -n 1)"
+			[ "x${Plugin_Instance_Number}" == "x" ] && Logger.Exit Failure "Failed to determine INSTANCE_NUMBER: Please specify with the '--instance-number' option."
+		}
+		else
+		{
+			Logger.LogInformation "Using INSTANCE_NUMBER = '${Plugin_Instance_Number}'."
+			[ "${Plugin_Instance_Number}" != "$(echo "${Plugin_Instance_Number}" | grep -E '^[0-9]{2}$')" ] && Logger.Exit Failure "Specified INSTANCE_NUMBER is invalid: Bad format."
+			[ ! -d "/usr/sap/${Plugin_Sid}/HDB${Plugin_Instance_Number}" ] && Logger.Exit Failure "Specified INSTANCE_NUMBER is invalid: The directory '/usr/sap/${Plugin_Sid}/HDB${Plugin_Instance_Number}' does not exist."
+		}
+		fi
+		Logger.LogPass "Found INSTANCE_NUMBER = '${Plugin_Instance_Number}'."
+
+		Logger.LogInformation "Determining USER."
+		Plugin_User="$(stat -c '%U' /usr/sap/${Plugin_Sid} 2>/dev/null)"
+		[ "x${Plugin_User}" == "x" ] && Logger.Exit Failure "Failed to determine USER: Unable to read the owner of the directory '/usr/sap/${Plugin_Sid}'."
+		[ "${Plugin_User}" != "${Plugin_Sid,,}adm" ] && Logger.Exit Failure "Failed to determine USER: '${Plugin_User}' does not match with the SID."
+		Logger.LogPass "Found USER = '${Plugin_User}'."
+
+		if [ "x${Plugin_HSR_Unique_Value}" == "x" ]
+		then
+		{
+			Logger.LogInformation "Determining PORT_NUMBER."
+			Plugin_Port_Number="$(awk -F '[: \t]+' '{gsub(/^[ \t]+/,"",$0)} $6=="0A" && $12=="'"$(id -u "${Plugin_User}")"'" {print $3}' /proc/net/tcp |\
+			while read portNum
+			do
+			{
+				echo "$((0x${portNum}))"
+			}
+			done | grep "^3${Plugin_Instance_Number}1[35]\$" | sort | head -n 1)"
+			[ "x${Plugin_Port_Number}" == "x" ] && Logger.Exit Failure "Failed to determine PORT_NUMBER: Please ensure the index server is running on the SQL port."
+			Logger.LogPass "Found PORT_NUMBER = '${Plugin_Port_Number}'."
+		}
+		else
+		{
+			local isProvidedHSRuniqueValueGood="false"
+			[[ ${#Plugin_HSR_Unique_Value} -ge 6 && ${#Plugin_HSR_Unique_Value} -lt 35 && "$Plugin_HSR_Unique_Value" == *[A-Z]* && "$Plugin_HSR_Unique_Value" == [A-Za-z]* && "$Plugin_HSR_Unique_Value" == *[a-z]* && "$Plugin_HSR_Unique_Value" == *[0-9]* ]] && isProvidedHSRuniqueValueGood="true"
+			[ "x${isProvidedHSRuniqueValueGood}" == "xfalse" ] && Logger.LogError "Please provide unique alphanumeric value for HSR instance containing atleast One upper case,one small case and one numeric digit. It should be greater or equal then 6 letter and less then 35 letter."
+
+			Plugin.RunCommand "/usr/sap/${Plugin_Sid}/HDB${Plugin_Instance_Number}/exe/hdbnsutil" -sr_state
+			local mode="$(echo "${Plugin_Run_Command_Output}" | grep -E '^mode:' | cut -d ' ' -f'2')"
+			if [[ "x${mode}" == "xprimary" || "x${mode}" == "xnone" ]]; then
+			{
+				Plugin_HSR_Primary="1"
+			}
+			fi
+			Logger.LogInformation "Mode is : '${mode}' and Plugin_HSR_Primary : '${Plugin_HSR_Primary}'."
+
+			if [ "${Plugin_HSR_Primary}" -eq "0" ]
+			then
+			{
+				[ "x${Plugin_Port_Number}" == "x" ] && Logger.Exit Failure "For HSR configuration for secondary system please provide the port number. Check -h option."
+			}
+			else
+			{
+				Logger.LogInformation "Determining PORT_NUMBER."
+				Plugin_Port_Number="$(awk -F '[: \t]+' '{gsub(/^[ \t]+/,"",$0)} $6=="0A" && $12=="'"$(id -u "${Plugin_User}")"'" {print $3}' /proc/net/tcp |\
+				while read portNum
+				do
+				{
+					echo "$((0x${portNum}))"
+				}
+				done | grep "^3${Plugin_Instance_Number}1[35]\$" | sort | head -n 1)"
+				[ "x${Plugin_Port_Number}" == "x" ] && Logger.Exit Failure "Failed to determine PORT_NUMBER: Please ensure the index server is running on the SQL port."
+				Logger.LogPass "Found PORT_NUMBER = '${Plugin_Port_Number}'."
+			}
+			fi
+		}
+		fi
+
+		Logger.LogInformation "Determining HDBUSERSTORE_PATH."
+		Plugin_Hdbuserstore_Path="$(ls /usr/sap/${Plugin_Sid}/HDB${Plugin_Instance_Number}/exe/hdbuserstore 2>/dev/null)"
+		[ "x${Plugin_Hdbuserstore_Path}" == "x" ] && Logger.Exit Failure "Failed to determine HDBUSERSTORE_PATH: Please ensure 'hdbuserstore' is correctly installed in the instance 'exe' directory."
+		Logger.LogPass "Found HDBUSERSTORE_PATH = '${Plugin_Hdbuserstore_Path}'."
+		Logger.LogInformation "Determining HDBSQL_PATH."
+		Plugin_Hdbsql_Path="$(ls /usr/sap/${Plugin_Sid}/HDB${Plugin_Instance_Number}/exe/hdbsql 2>/dev/null)"
+		[ "x${Plugin_Hdbsql_Path}" == "x" ] && Logger.Exit Failure "Failed to determine HDBSQL_PATH: Please ensure 'hdbsql' is correctly installed in the instance 'exe' directory."
+		Logger.LogPass "Found HDBSQL_PATH = '${Plugin_Hdbsql_Path}'."
+
+		if [ "x${Plugin_System_Key_Name}" == "x" ]
+		then
+		{
+			Logger.LogInformation "Determining SYSTEM_KEY_NAME."
+			Plugin.FindKeyByUser "SYSTEM"
+
+			if [ "x${Plugin_Find_Key_Name}" == "x" ]
+			then
+			{
+				Logger.LogWarning "Failed to determine SYSTEM_KEY_NAME: Please specify with the '--system-key' option.\n${Constant_UserHints_SystemKeyCreationMsg}"
+			}
+			else
+			{
+				Logger.LogPass "Found SYSTEM_KEY_NAME = '${Plugin_Find_Key_Name}'."
+				Plugin_System_Key_Name="${Plugin_Find_Key_Name}"
+			}
+			fi
+		}
+		else
+		{
+			Logger.LogInformation "Using SYSTEM_KEY_NAME = '${Plugin_System_Key_Name}'."
+			Plugin.FindKeyByName "${Plugin_System_Key_Name}"
+
+			if [ "x${Plugin_Find_Key_Name}" == "x" ]
+			then
+			{
+				Logger.LogWarning "Specified SYSTEM_KEY_NAME is invalid: Please ensure that it is available in the hdbuserstore.\n${Constant_UserHints_SystemKeyCreationMsg}"
+				Plugin_System_Key_Name=""
+			}
+			else
+			{
+				Logger.LogPass "Found SYSTEM_KEY_NAME = '${Plugin_Find_Key_Name}'."
+			}
+			fi
+		}
+		fi
+
 		Logger.LogInformation "Checking if SID is registered."
 		Plugin_Host_Service_File="${Constant_Plugin_Host_Service_File_Old//\{1\}/${Plugin_Sid,,}}"
 		[ -f "${Plugin_Host_Service_File}" ] && Logger.Exit Failure "SID is still registered. Please un-register it first."
-		Logger.LogPass "SID is un-registered"
+		Logger.LogPass "SID is un-registered."
 
-		Logger.Exit Failure "Not implemented."
+		if [ "x${Plugin_Config_Backup_Key_Name}" != "x" ]
+		then
+		{
+			Logger.LogInformation "Determining BACKUP_KEY_NAME and BACKUP_KEY_USER."
+			Plugin.FindKeyByUser "${Constant_Plugin_Default_Backup_Key_User}" "$(hostname)"
 
-		Plugin.DeleteUser
-		Plugin.RemoveSupplementaryGroupFromUser
+			if [ "x${Plugin_Find_Key_Name}" == "x" ]
+			then
+			{
+				Logger.LogWarning "Failed to determine BACKUP_KEY_NAME from hdbuserstore. Skipping removal of BACKUP_KEY_NAME and BACKUP_KEY_USER."
+				Plugin_Backup_Key_Exists=0
+			}
+			else
+			{
+				Logger.LogPass "Found BACKUP_KEY_NAME = '${Plugin_Find_Key_Name}': Will remove key."
+				Logger.LogPass "Found BACKUP_KEY_USER = '${Plugin_Find_Key_User}': Will remove user."
+				Plugin_Backup_Key_Name="${Plugin_Find_Key_Name}"
+				Plugin_Backup_Key_User="${Plugin_Find_Key_User}"
+				Plugin_Backup_Key_Exists=1
+
+				[ "x${Plugin_Config_Backup_Key_Name}" != "x${Plugin_Backup_Key_Name}" ] && Logger.Exit Failure "BACKUP_KEY_NAME found in configuration and in hdbuserstore do not match."
+			}
+			fi
+		}
+		else
+		{
+			Logger.Exit Failure "No BACKUP_KEY_NAME found in configuration."
+			Plugin_Backup_Key_Exists=0
+		}
+		fi
+
+		[ "${Plugin_Backup_Key_Exists}" -eq "1" ] && Plugin.DeleteUser
+		[ "x${Plugin_Config_AD_User}" == "xfalse" ] && Plugin.RemoveSupplementaryGroupFromUser
 		Plugin.WriteConfig
 		Plugin.WriteEnvironment
 	}
@@ -1798,6 +1958,9 @@ Plugin()
 		result="$("${Package_Python_Executable}" -c $'import json\n'"with open('${Constant_Plugin_Config_File_Old}', 'r') as config: print(json.load(config)[0]['PropertyBag']['hdbuserstoreKeyName'])" 2>&1)"
 		[ "${?}" -eq "0" ] && Plugin_Config_Backup_Key_Name="${result}" && Logger.LogInformation "Found BACKUP_KEY_NAME = '${Plugin_Config_Backup_Key_Name}'."
 
+		result="$("${Package_Python_Executable}" -c $'import json\n'"with open('${Constant_Plugin_Config_File_Old}', 'r') as config: print(json.load(config)[0]['PropertyBag']['isADUser'])" 2>&1)"
+		[ "${?}" -eq "0" ] && Plugin_Config_AD_User="${result}" && Logger.LogInformation "Found AD_USER = '${Plugin_Config_AD_User}'."
+
 		Logger.LogPass "Reading complete."
 	}
 
@@ -1927,7 +2090,7 @@ with open('${Constant_Plugin_Config_File_Old}', 'w') as config:
 	Plugin.RemoveSupplementaryGroupFromUser()
 	{
 		Logger.LogInformation "Removing user '${Plugin_User}' from group '${Constant_Msawb_Group_Secondary}'."
-		local result && result="$(gpasswd --remove "${Plugin_User}" "${Constant_Msawb_Group_Secondary}" 2>&1)"
+		local result && result="$(gpasswd --delete "${Plugin_User}" "${Constant_Msawb_Group_Secondary}" 2>&1)"
 		[ "${?}" -eq "0" ] && Logger.LogPass "Successfully removed user." && return
 		Logger.Exit Failure "Failed to remove user: '${result}'."
 	}
@@ -2153,6 +2316,10 @@ Main()
 
 			"remove")
 			{
+				Check.Hostnames
+
+				Package.RequirePython
+
 				Plugin.Run
 				Main.DeleteGroupIfEmpty
 			};;

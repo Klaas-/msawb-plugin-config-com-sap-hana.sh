@@ -24,7 +24,7 @@ Constant()
 		Constant_Plugin_Host_Service_File="/usr/lib/systemd/system/msawb-pluginhost-${Constant_Plugin_Name}-{1}.service"
 		Constant_Plugin_Host_Service_File_Old="/usr/lib/systemd/system/msawb-pluginhost-saphana-{1}.service"
 
-		Constant_Script_Version="2.0.9.6"
+		Constant_Script_Version="2.0.9.5"
 		Constant_Script_Name="$(basename "${0}")"
 		Constant_Script_Path="$(realpath "${0}")"
 		Constant_Script_Directory="$(dirname "${Constant_Script_Path}")"
@@ -65,8 +65,7 @@ Logger()
 		{
 			mkdir -p "$(dirname "${Constant_Script_Log_File}")"
 			touch "${Constant_Script_Log_File}"
-			chown -R "${Constant_Msawb_User}:${Constant_Msawb_Group_Secondary}" "$(dirname "${Constant_Script_Log_File}")"
-			chmod -R 770 "$(dirname "${Constant_Script_Log_File}")"
+			chown -R "${Constant_Msawb_User}:${Constant_Msawb_Group}" "$(dirname "${Constant_Script_Log_File}")"
 			exec 3> "${Constant_Script_Log_File}"
 		}
 		else
@@ -497,7 +496,7 @@ Check()
 	{
 		Logger.LogInformation "Checking if '${Constant_Msawb_User}'."
 		[ "x${Constant_Script_User}" != "x${Constant_Msawb_User}" ] && Logger.Exit Failure "Please re-run as '${Constant_Msawb_User}'."
-		Logger.LogPass "Running script version '${Constant_Script_Version}' as '${Constant_Msawb_User}'."
+		Logger.LogPass "Running as '${Constant_Msawb_User}'."
 	}
 
 	Check.OS()
@@ -529,7 +528,6 @@ Check()
 			RHEL-8.1
 			RHEL-8.2
 			RHEL-8.4
-			RHEL-8.6
 		Check_OS_Name_Version_Supported_EOF
 		[ "${?}" -ne "0" ] && Logger.Exit Failure "Found unsupported OS_NAME_VERSION = '${Check_OS_Name_Version}'.\n${Constant_PreRequisitesMsg}"
 		Logger.LogPass "Found supported OS_NAME_VERSION = '${Check_OS_Name_Version}'."

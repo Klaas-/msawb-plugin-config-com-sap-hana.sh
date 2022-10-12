@@ -24,7 +24,7 @@ Constant()
 		Constant_Plugin_Host_Service_File="/usr/lib/systemd/system/msawb-pluginhost-${Constant_Plugin_Name}-{1}.service"
 		Constant_Plugin_Host_Service_File_Old="/usr/lib/systemd/system/msawb-pluginhost-saphana-{1}.service"
 
-		Constant_Script_Version="2.1.0.0"
+		Constant_Script_Version="2.0.9.6"
 		Constant_Script_Name="$(basename "${0}")"
 		Constant_Script_Path="$(realpath "${0}")"
 		Constant_Script_Directory="$(dirname "${Constant_Script_Path}")"
@@ -55,16 +55,6 @@ Errno()
 		Errno_Argument_Unexpected=4
 		Errno_Argument_Unexpected_Message="Unexpected argument '{1}': See '${Constant_Script_Name} --help' for more information."
 	}
-
-	# Exit codes
-	# Category 1
-	# 	Incorrect script usage 8-15
-	# 	Script needs to be run with correct parameter and values 16-63
-	# Category 2  
-	# 	Connectivity issues 79-90
-	# 	Package related issues 90-95
-	# 	OS/HANA related issues 100-125; 166-199
-
 }
 
 Logger()
@@ -126,19 +116,8 @@ Logger()
 		local message="Errno_${1}_Message"
 		shift
 
+		errno="${!errno}"
 		message="${!message//\{1\}/${1}}"
-		shift
-
-		if [ -z "${1}" ]
-		then
-		{
-			errno="${!errno}"
-		}
-		else
-		{
-			errno="${1}"
-		}
-		fi
 		shift
 
 		if [ "${errno}" -eq "0" ]
@@ -365,7 +344,7 @@ Package()
 
 			libraryCurrentVersion="$(${versionCommand})"
 			libraryExists="$(${searchCommand})"
-			[ ! "${libraryExists}" ] && Logger.Exit Failure "Failed to determine VERSION: Installation failed. Please add corresponding library repository for ${libraryName} to continue." 90
+			[ ! "${libraryExists}" ] && Logger.Exit Failure "Failed to determine VERSION: Installation failed. Please add corresponding library repository for ${libraryName} to continue."
 			
 			Package.VersionCompare "${libraryCurrentVersion}" "${libraryVersionRec}"
 			if [ "${Package_Version_Compare_Result}" -eq "0" ]
@@ -383,7 +362,7 @@ Package()
 				}
 				else
 				{
-					Logger.Exit Failure "Found VERSION = '${libraryCurrentVersion}': LIBRARY is too old to be compatible. Upgrade your distro or package repository to continue." 91
+					Logger.Exit Failure "Found VERSION = '${libraryCurrentVersion}': LIBRARY is too old to be compatible. Upgrade your distro or package repository to continue."
 				}
 				fi
 			}
@@ -443,7 +422,7 @@ Package()
 					}
 					else
 					{
-						Logger.Exit Failure "Found VERSION = '${packageCurrentVersion}': PACKAGE is too old to be compatible. Upgrade your distro or package repository to continue." 91
+						Logger.Exit Failure "Found VERSION = '${packageCurrentVersion}': PACKAGE is too old to be compatible. Upgrade your distro or package repository to continue."
 					}
 					fi
 				}
@@ -477,7 +456,7 @@ Package()
 				eval "${installCommand}"
 
 				executablePath="$(which "${executableName}" 2> /dev/null)"
-				[ "x${executablePath}" == "x" ] && Logger.Exit Failure "Failed to determine VERSION: Installation failed. Please add corresponding package repository for ${packageName} to continue." 90
+				[ "x${executablePath}" == "x" ] && Logger.Exit Failure "Failed to determine VERSION: Installation failed. Please add corresponding package repository for ${packageName} to continue."
 
 				packageCurrentVersion="$(${executablePath} --version 2>&1 | tr -s '[:space:]-' ' ' | cut -d ' ' -f 2)"
 				Package.VersionCompare "${packageCurrentVersion}" "${packageVersionRec}"
@@ -496,7 +475,7 @@ Package()
 					}
 					else
 					{
-						Logger.Exit Failure "Found VERSION = '${packageCurrentVersion}': PACKAGE is too old to be compatible. Upgrade your distro or package repository to continue." 91
+						Logger.Exit Failure "Found VERSION = '${packageCurrentVersion}': PACKAGE is too old to be compatible. Upgrade your distro or package repository to continue."
 					}
 					fi
 				}
@@ -517,7 +496,7 @@ Check()
 	Check.User()
 	{
 		Logger.LogInformation "Checking if '${Constant_Msawb_User}'."
-		[ "x${Constant_Script_User}" != "x${Constant_Msawb_User}" ] && Logger.Exit Failure "Please re-run as '${Constant_Msawb_User}'." 8
+		[ "x${Constant_Script_User}" != "x${Constant_Msawb_User}" ] && Logger.Exit Failure "Please re-run as '${Constant_Msawb_User}'."
 		Logger.LogPass "Running script version '${Constant_Script_Version}' as '${Constant_Msawb_User}'."
 	}
 
@@ -552,7 +531,7 @@ Check()
 			RHEL-8.4
 			RHEL-8.6
 		Check_OS_Name_Version_Supported_EOF
-		[ "${?}" -ne "0" ] && Logger.Exit Failure "Found unsupported OS_NAME_VERSION = '${Check_OS_Name_Version}'.\n${Constant_PreRequisitesMsg}" 100
+		[ "${?}" -ne "0" ] && Logger.Exit Failure "Found unsupported OS_NAME_VERSION = '${Check_OS_Name_Version}'.\n${Constant_PreRequisitesMsg}"
 		Logger.LogPass "Found supported OS_NAME_VERSION = '${Check_OS_Name_Version}'."
 	}
 
@@ -574,7 +553,7 @@ Check()
 		HOSTNAMES_2_EOF
 		)"
 		hostnames="$(echo "${hostnames}" | sort | uniq | sed '/^[[:space:]]*$/d')"
-		[ "x${hostnames}" == "x" ] && Logger.Exit Failure "Failed to determine HOSTNAMES." 101
+		[ "x${hostnames}" == "x" ] && Logger.Exit Failure "Failed to determine HOSTNAMES."
 		Logger.LogPass "Found HOSTNAMES = ["
 		local hostname=""
 		echo "${hostnames}" | while read -r hostname
@@ -593,7 +572,7 @@ Check()
 		#systemctl restart waagent.service
 		Logger.LogInformation "Checking status of 'WaAgent' service."
 		systemctl is-active --quiet waagent.service
-		[ "${?}" -ne "0" ] && Logger.Exit Failure "Service 'WaAgent' is not active. Please run following command to restart waagent:\n systemctl restart waagent.service\n\n" 102
+		[ "${?}" -ne "0" ] && Logger.Exit Failure "Service 'WaAgent' is not active. Please run following command to restart waagent:\n systemctl restart waagent.service\n\n"
 		Logger.LogPass "Service 'WaAgent' is active."
 	}
 
@@ -609,9 +588,9 @@ Check()
 	{
 		Logger.LogInformation "Checking connectivity to 'Wireserver' service."
 		local versions && versions="$(curl --silent --noproxy "*" --location --request GET "http://168.63.129.16/?comp=versions")"
-		[ "${?}" -ne "0" ] && Logger.Exit Failure "Failed to connect to 'Wireserver' service." 79
+		[ "${?}" -ne "0" ] && Logger.Exit Failure "Failed to connect to 'Wireserver' service."
 		local version && version="$(echo "${versions}" | "${Package_Python_Executable}" -c "import xml.etree.ElementTree as ET,sys; print(ET.fromstring(sys.stdin.read()).findall('./Preferred/Version')[0].text)")"
-		[ "${?}" -ne "0" ] && Logger.Exit Failure "Failed to determine WIRESERVER_VERSION." 79
+		[ "${?}" -ne "0" ] && Logger.Exit Failure "Failed to determine WIRESERVER_VERSION."
 		Logger.LogPass "Found WIRESERVER_VERSION = '${version}'."
 	}
 
@@ -619,7 +598,7 @@ Check()
 	{
 		Logger.LogInformation "Checking connectivity to 'InstanceMetadata' service."
 		local metadata && metadata="$(curl --silent --noproxy "*" --location --request GET "http://169.254.169.254/metadata/instance/compute?api-version=2019-03-11" --header "Metadata: true")"
-		[ "${?}" -ne "0" ] && Logger.Exit Failure "Failed to connect to 'InstanceMetadata' service." 80
+		[ "${?}" -ne "0" ] && Logger.Exit Failure "Failed to connect to 'InstanceMetadata' service."
 		Check_IMDS_VM_Region="$(echo "${metadata}" | "${Package_Python_Executable}" -c "import sys,json; print(json.load(sys.stdin)['location'].lower())" 2>/dev/null)"
 		if [ "${?}" -ne "0" ]
 		then
@@ -642,8 +621,8 @@ Check()
 
 		Logger.LogInformation "Checking connectivity to '${service}' service."
 		local response && response="$(curl --silent --output /dev/null --location --request "${verb}" "${url}" --write-out "%{http_code}\n")"
-		[ "${?}" -ne "0" ] && Logger.Exit Failure "Failed to connect to '${service}' service." 81
-		[ "x${response}" != "x${status}" ] && Logger.Exit Failure "Received from '${service}' service: 'HTTP/${response}'." 81
+		[ "${?}" -ne "0" ] && Logger.Exit Failure "Failed to connect to '${service}' service."
+		[ "x${response}" != "x${status}" ] && Logger.Exit Failure "Received from '${service}' service: 'HTTP/${response}'."
 		Logger.LogPass "Received from '${service}' service: 'HTTP/${response}'."
 	}
 
@@ -655,7 +634,7 @@ Check()
 
 		Logger.LogInformation "Checking connectivity to '${service}' service."
 		local response && response=$("${Package_Python_Executable}" -c "import socket;sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM);sock.settimeout(120);print(sock.connect_ex(('${url}',${port})))")
-		[ "${response}" -ne "0" ] && Logger.Exit Failure "Failed to connect to '${service}' service." 82
+		[ "${response}" -ne "0" ] && Logger.Exit Failure "Failed to connect to '${service}' service."
 		Logger.LogPass "Connectivity check for '${service}' service successful."
 	}
 
@@ -735,7 +714,7 @@ Check()
 		else
 		{
 			local serviceUrls="${Check_Service_Urls["${Check_IMDS_VM_Region}"]}"
-			[ "x${serviceUrls}" == "x" ] && Logger.Exit Failure "Feature not yet available in this region.\n${Constant_PreRequisitesMsg}" 115
+			[ "x${serviceUrls}" == "x" ] && Logger.Exit Failure "Feature not yet available in this region.\n${Constant_PreRequisitesMsg}"
 
 			local blobUrl="$(echo "${serviceUrls}" | cut -d "," -f 1)"
 			Check.HttpConnectivity "Blob" "GET" "${blobUrl}" "400"
@@ -753,12 +732,12 @@ Check()
 	{
 		Logger.LogInformation "Checking for free space in '${Constant_Handler_Location}'."
 		local availSpaceInMB="$(df --block-size 1048576 --output=avail ${Constant_Handler_Location} | tail -n 1 | tr -d '[:space:]')"
-		[ "${availSpaceInMB}" -lt "300" ] && Logger.Exit Failure "Found less than 300 MiB space on '${Constant_Handler_Location}'.\n${Constant_PreRequisitesMsg}" 103
+		[ "${availSpaceInMB}" -lt "300" ] && Logger.Exit Failure "Found less than 300 MiB space on '${Constant_Handler_Location}'.\n${Constant_PreRequisitesMsg}"
 		Logger.LogPass "Found at least 300 MiB space on '${Constant_Handler_Location}'."
 
 		Logger.LogInformation "Checking for free space in '/opt'."
 		local availSpaceInGB="$(df --block-size 1073741824 --output=avail /opt | tail -n 1 | tr -d '[:space:]')"
-		[ "${availSpaceInGB}" -lt "2" ] && Logger.Exit Failure "Found less than 2 GiB space on '/opt'.\n${Constant_PreRequisitesMsg}" 103
+		[ "${availSpaceInGB}" -lt "2" ] && Logger.Exit Failure "Found less than 2 GiB space on '/opt'.\n${Constant_PreRequisitesMsg}"
 		if [ "${availSpaceInGB}" -lt "4" ]
 		then
 		{
@@ -805,7 +784,6 @@ Plugin()
 		Plugin_HSR_Primary="0"
 		Plugin_IsHSRAlreadyRegistered="0"
 		Plugin_AD_User="false"
-		Plugin_Custom_Roles="false"
 	}
 
 	Plugin.Parse()
@@ -882,22 +860,6 @@ Plugin()
 				{
 					shift
 					Plugin_Skip_Network_Checks="1"
-				};;
-
-				"-hn" | "--hsr-unique-value")
-				{
-					Logger.ExitOnArgumentMissing "${@}"
-					shift
-					Plugin_HSR_Unique_Value="${1}"
-					shift
-				};;
-
-				"-p" | "--port-number")
-				{
-					Logger.ExitOnArgumentMissing "${@}"
-					shift
-					Plugin_Port_Number="${1}"
-					shift
 				};;
 
 				"-sks"|"--sslkeystore")
@@ -988,26 +950,26 @@ Plugin()
 			elif [ "x${Plugin_Sid}" != "x${Plugin_Config_Sid}" ]
 			then
 			{
-				Logger.Exit Failure "Cannot add specified SID '${Plugin_Sid}': Please remove the current SID with the '--remove' command." 16
+				Logger.Exit Failure "Cannot add specified SID '${Plugin_Sid}': Please remove the current SID with the '--remove' command."
 			}
 			fi
 		}
 		fi
 
-		[[ "${Plugin_IsHSRAlreadyRegistered}" -ne "0" && "x${Plugin_HSR_Unique_Value}" == "x" ]] && Logger.Exit Failure "This VM is registered as HSR instance. Please do stop protection for HSR instance and then run pre-registration script in standalone mode." 9
+		[[ "${Plugin_IsHSRAlreadyRegistered}" -ne "0" && "x${Plugin_HSR_Unique_Value}" == "x" ]] && Logger.Exit Failure "This VM is registered as HSR instance. Please do stop protection for HSR instance and then run pre-registration script in standalone mode."
 
 		if [ "x${Plugin_Sid}" == "x" ]
 		then
 		{
 			Logger.LogInformation "Determining SID."
 			Plugin_Sid="$(ls /usr/sap 2>/dev/null | grep -E '^[A-Z][0-9A-Z]{2}$' | head -n 1)"
-			[ "x${Plugin_Sid}" == "x" ] && Logger.Exit Failure "Failed to determine SID: Please specify with the '--sid' option." 17
+			[ "x${Plugin_Sid}" == "x" ] && Logger.Exit Failure "Failed to determine SID: Please specify with the '--sid' option."
 		}
 		else
 		{
 			Logger.LogInformation "Using SID = '${Plugin_Sid}'."
 			[ "${Plugin_Sid}" != "$(echo "${Plugin_Sid}" | grep -E '^[A-Z][0-9A-Z]{2}$')" ] && Logger.Exit Failure "Specified SID is invalid: Bad format."
-			[ ! -d "/usr/sap/${Plugin_Sid}" ] && Logger.Exit Failure "Specified SID is invalid: The directory '/usr/sap/${Plugin_Sid}' does not exist." 17
+			[ ! -d "/usr/sap/${Plugin_Sid}" ] && Logger.Exit Failure "Specified SID is invalid: The directory '/usr/sap/${Plugin_Sid}' does not exist."
 		}
 		fi
 		Logger.LogPass "Found SID = '${Plugin_Sid}'."
@@ -1017,30 +979,30 @@ Plugin()
 		{
 			Logger.LogInformation "Determining INSTANCE_NUMBER."
 			Plugin_Instance_Number="$(ls /usr/sap/${Plugin_Sid} | grep -E "^HDB[0-9]{2}$" | cut -c4- | head -n 1)"
-			[ "x${Plugin_Instance_Number}" == "x" ] && Logger.Exit Failure "Failed to determine INSTANCE_NUMBER: Please specify with the '--instance-number' option." 18
+			[ "x${Plugin_Instance_Number}" == "x" ] && Logger.Exit Failure "Failed to determine INSTANCE_NUMBER: Please specify with the '--instance-number' option."
 		}
 		else
 		{
 			Logger.LogInformation "Using INSTANCE_NUMBER = '${Plugin_Instance_Number}'."
-			[ "${Plugin_Instance_Number}" != "$(echo "${Plugin_Instance_Number}" | grep -E '^[0-9]{2}$')" ] && Logger.Exit Failure "Specified INSTANCE_NUMBER is invalid: Bad format." 18
-			[ ! -d "/usr/sap/${Plugin_Sid}/HDB${Plugin_Instance_Number}" ] && Logger.Exit Failure "Specified INSTANCE_NUMBER is invalid: The directory '/usr/sap/${Plugin_Sid}/HDB${Plugin_Instance_Number}' does not exist." 18
+			[ "${Plugin_Instance_Number}" != "$(echo "${Plugin_Instance_Number}" | grep -E '^[0-9]{2}$')" ] && Logger.Exit Failure "Specified INSTANCE_NUMBER is invalid: Bad format."
+			[ ! -d "/usr/sap/${Plugin_Sid}/HDB${Plugin_Instance_Number}" ] && Logger.Exit Failure "Specified INSTANCE_NUMBER is invalid: The directory '/usr/sap/${Plugin_Sid}/HDB${Plugin_Instance_Number}' does not exist."
 		}
 		fi
 		Logger.LogPass "Found INSTANCE_NUMBER = '${Plugin_Instance_Number}'."
 
 		Logger.LogInformation "Determining USER."
 		Plugin_User="$(stat -c '%U' /usr/sap/${Plugin_Sid} 2>/dev/null)"
-		[ "x${Plugin_User}" == "x" ] && Logger.Exit Failure "Failed to determine USER: Unable to read the owner of the directory '/usr/sap/${Plugin_Sid}'." 104
-		[ "${Plugin_User}" != "${Plugin_Sid,,}adm" ] && Logger.Exit Failure "Failed to determine USER: '${Plugin_User}' does not match with the SID." 104
+		[ "x${Plugin_User}" == "x" ] && Logger.Exit Failure "Failed to determine USER: Unable to read the owner of the directory '/usr/sap/${Plugin_Sid}'."
+		[ "${Plugin_User}" != "${Plugin_Sid,,}adm" ] && Logger.Exit Failure "Failed to determine USER: '${Plugin_User}' does not match with the SID."
 		Logger.LogPass "Found USER = '${Plugin_User}'."
 
 		Logger.LogInformation "Determining HOSTNAME."
 		Plugin.RunCommand echo "\$HOSTNAME"
-		[ "x${Plugin_Run_Command_Status}" != "x0" ] && Logger.Exit Failure "Failed to determine HOSTNAME for the SAPHana Instance." 101
+		[ "x${Plugin_Run_Command_Status}" != "x0" ] && Logger.Exit Failure "Failed to determine HOSTNAME for the SAPHana Instance."
 		Plugin_System_Host_Name="$(echo "${Check_Hostnames}" | while read -r checkHostname
 		do [ "x${checkHostname}" == "x${Plugin_Run_Command_Output}" ] && echo "${Plugin_Run_Command_Output}" && break
 		done;)"
-		[ "x${Plugin_System_Host_Name}" == "x" ] && Logger.Exit Failure "Failed to determine HOSTNAME for the SAPHana Instance." 101
+		[ "x${Plugin_System_Host_Name}" == "x" ] && Logger.Exit Failure "Failed to determine HOSTNAME for the SAPHana Instance."
 		Logger.LogPass "Found Hostname = '${Plugin_System_Host_Name}'."
 
 		if [ "x${Plugin_HSR_Unique_Value}" == "x" ]
@@ -1054,13 +1016,13 @@ Plugin()
 				echo "$((0x${portNum}))"
 			}
 			done | grep "^3${Plugin_Instance_Number}1[35]\$" | sort | head -n 1)"
-			[ "x${Plugin_Port_Number}" == "x" ] && Logger.Exit Failure "Failed to determine PORT_NUMBER: Please ensure the index server is running on the SQL port." 105
+			[ "x${Plugin_Port_Number}" == "x" ] && Logger.Exit Failure "Failed to determine PORT_NUMBER: Please ensure the index server is running on the SQL port."
 			Logger.LogPass "Found PORT_NUMBER = '${Plugin_Port_Number}'."
 
 			Logger.LogInformation "Determining INSTANCE_TYPE."
 			[ "${Plugin_Port_Number: -2}" == "13" ] && Plugin_Instance_Type="MDC"
 			[ "${Plugin_Port_Number: -2}" == "15" ] && Plugin_Instance_Type="SDC"
-			[ "x${Plugin_Instance_Type}" == "x" ] && Logger.Exit Failure "Failed to determine INSTANCE_TYPE: Please ensure the index server is running on the SQL port." 106
+			[ "x${Plugin_Instance_Type}" == "x" ] && Logger.Exit Failure "Failed to determine INSTANCE_TYPE: Please ensure the index server is running on the SQL port."
 			Logger.LogPass "Found INSTANCE_TYPE = '${Plugin_Instance_Type}'."
 
 			Plugin.RunCommand "/usr/sap/${Plugin_Sid}/HDB${Plugin_Instance_Number}/exe/hdbnsutil" -sr_state
@@ -1092,12 +1054,12 @@ Plugin()
 			if [ "${Plugin_HSR_Primary}" -eq "0" ]
 			then
 			{
-				[ "x${Plugin_Port_Number}" == "x" ] && Logger.Exit Failure "For HSR configuration for secondary system please provide the port number. Check -h option." 19
+				[ "x${Plugin_Port_Number}" == "x" ] && Logger.Exit Failure "For HSR configuration for secondary system please provide the port number. Check -h option."
 
 				Logger.LogInformation "Determining INSTANCE_TYPE."
 				[ "${Plugin_Port_Number: -2}" == "13" ] && Plugin_Instance_Type="MDC"
 				[ "${Plugin_Port_Number: -2}" == "15" ] && Plugin_Instance_Type="SDC"
-				[ "x${Plugin_Instance_Type}" == "x" ] && Logger.Exit Failure "Failed to determine INSTANCE_TYPE: Please ensure the index server is running on the SQL port." 106
+				[ "x${Plugin_Instance_Type}" == "x" ] && Logger.Exit Failure "Failed to determine INSTANCE_TYPE: Please ensure the index server is running on the SQL port."
 				Logger.LogPass "Found INSTANCE_TYPE = '${Plugin_Instance_Type}'."
 
 			}
@@ -1111,13 +1073,13 @@ Plugin()
 					echo "$((0x${portNum}))"
 				}
 				done | grep "^3${Plugin_Instance_Number}1[35]\$" | sort | head -n 1)"
-				[ "x${Plugin_Port_Number}" == "x" ] && Logger.Exit Failure "Failed to determine PORT_NUMBER: Please ensure the index server is running on the SQL port." 105
+				[ "x${Plugin_Port_Number}" == "x" ] && Logger.Exit Failure "Failed to determine PORT_NUMBER: Please ensure the index server is running on the SQL port."
 				Logger.LogPass "Found PORT_NUMBER = '${Plugin_Port_Number}'."
 
 				Logger.LogInformation "Determining INSTANCE_TYPE."
 				[ "${Plugin_Port_Number: -2}" == "13" ] && Plugin_Instance_Type="MDC"
 				[ "${Plugin_Port_Number: -2}" == "15" ] && Plugin_Instance_Type="SDC"
-				[ "x${Plugin_Instance_Type}" == "x" ] && Logger.Exit Failure "Failed to determine INSTANCE_TYPE: Please ensure the index server is running on the SQL port." 106
+				[ "x${Plugin_Instance_Type}" == "x" ] && Logger.Exit Failure "Failed to determine INSTANCE_TYPE: Please ensure the index server is running on the SQL port."
 				Logger.LogPass "Found INSTANCE_TYPE = '${Plugin_Instance_Type}'."
 			}
 			fi
@@ -1128,28 +1090,28 @@ Plugin()
 		Logger.LogInformation "Determining INSTANCE_VERSION."
 		Plugin.RunCommand "/usr/sap/${Plugin_Sid}/HDB${Plugin_Instance_Number}/HDB" version
 		Plugin_Instance_Version="$(echo "${Plugin_Run_Command_Output}" | awk '$1=="version:" {print $2}')"
-		[ "x${Plugin_Instance_Version}" == "x" ] && Logger.Exit Failure "Failed to determine INSTANCE_VERSION: 'HDB' command failed." 107
+		[ "x${Plugin_Instance_Version}" == "x" ] && Logger.Exit Failure "Failed to determine INSTANCE_VERSION: 'HDB' command failed."
 		Logger.LogPass "Found INSTANCE_VERSION = '${Plugin_Instance_Version}'."
 
 		Logger.LogInformation "Checking INSTANCE_VERSION support."
 		Plugin_Instance_Version_Major="$(echo "${Plugin_Instance_Version}" | cut -d '.' -f 1)"
 		Logger.LogInformation "Found INSTANCE_VERSION_MAJOR = '${Plugin_Instance_Version_Major}'."
-		[ "${Plugin_Instance_Version_Major}" != "1" ] && [ "${Plugin_Instance_Version_Major}" != "2" ] && Logger.Exit Failure "Unsupported INSTANCE_VERSION_MAJOR.\n${Constant_PreRequisitesMsg}" 125
+		[ "${Plugin_Instance_Version_Major}" != "1" ] && [ "${Plugin_Instance_Version_Major}" != "2" ] && Logger.Exit Failure "Unsupported INSTANCE_VERSION_MAJOR.\n${Constant_PreRequisitesMsg}"
 		Plugin_Instance_Version_SPS="$(expr "$(echo "${Plugin_Instance_Version}" | cut -d '.' -f 3)" / 10)"
 		Logger.LogInformation "Found INSTANCE_VERSION_SPS = '${Plugin_Instance_Version_SPS}'."
-		[ "${Plugin_Instance_Version_Major}" == "1" ] && [ "${Plugin_Instance_Version_SPS}" -lt 9 ] && Logger.Exit Failure "Unsupported INSTANCE_VERSION_MAJOR = '1' and INSTANCE_VERSION_SPS < '9'.\n${Constant_PreRequisitesMsg}" 125
-		[ "${Plugin_Instance_Version_Major}" == "2" ] && [ "${Plugin_Instance_Version_SPS}" -gt 6 ] && Logger.Exit Failure "Unsupported INSTANCE_VERSION_MAJOR = '2' and INSTANCE_VERSION_SPS > '6'.\n${Constant_PreRequisitesMsg}" 125
+		[ "${Plugin_Instance_Version_Major}" == "1" ] && [ "${Plugin_Instance_Version_SPS}" -lt 9 ] && Logger.Exit Failure "Unsupported INSTANCE_VERSION_MAJOR = '1' and INSTANCE_VERSION_SPS < '9'.\n${Constant_PreRequisitesMsg}"
+		[ "${Plugin_Instance_Version_Major}" == "2" ] && [ "${Plugin_Instance_Version_SPS}" -gt 6 ] && Logger.Exit Failure "Unsupported INSTANCE_VERSION_MAJOR = '2' and INSTANCE_VERSION_SPS > '6'.\n${Constant_PreRequisitesMsg}"
 		Logger.LogPass "Supported INSTANCE_VERSION."
 
 		Logger.LogInformation "Determining DRIVER_PATH."
 		Plugin_Ld_Library_Path="/usr/sap/${Plugin_Sid}/HDB${Plugin_Instance_Number}/exe"
-		[ ! -d ${Plugin_Ld_Library_Path} ] && Logger.Exit Failure "Failed to determine DRIVER_PATH: Please ensure instance 'exe' directory '/usr/sap/${Plugin_Sid}/HDB${Plugin_Instance_Number}/exe' exists." 108
+		[ ! -d ${Plugin_Ld_Library_Path} ] && Logger.Exit Failure "Failed to determine DRIVER_PATH: Please ensure instance 'exe' directory '/usr/sap/${Plugin_Sid}/HDB${Plugin_Instance_Number}/exe' exists."
 		Plugin_Driver_Path="$(ls /usr/sap/${Plugin_Sid}/HDB${Plugin_Instance_Number}/exe/libodbcHDB.so 2>/dev/null)"
-		[ "x${Plugin_Driver_Path}" == "x" ] && Logger.Exit Failure "Failed to determine DRIVER_PATH: Please ensure 'libodbcHDB.so' is correctly installed in the instance 'exe' directory." 108
+		[ "x${Plugin_Driver_Path}" == "x" ] && Logger.Exit Failure "Failed to determine DRIVER_PATH: Please ensure 'libodbcHDB.so' is correctly installed in the instance 'exe' directory."
 		Plugin_Hdbuserstore_Path="$(ls /usr/sap/${Plugin_Sid}/HDB${Plugin_Instance_Number}/exe/hdbuserstore 2>/dev/null)"
-		[ "x${Plugin_Hdbuserstore_Path}" == "x" ] && Logger.Exit Failure "Failed to determine DRIVER_PATH: Please ensure 'hdbuserstore' is correctly installed in the instance 'exe' directory." 108
+		[ "x${Plugin_Hdbuserstore_Path}" == "x" ] && Logger.Exit Failure "Failed to determine DRIVER_PATH: Please ensure 'hdbuserstore' is correctly installed in the instance 'exe' directory."
 		Plugin_Hdbsql_Path="$(ls /usr/sap/${Plugin_Sid}/HDB${Plugin_Instance_Number}/exe/hdbsql 2>/dev/null)"
-		[ "x${Plugin_Hdbsql_Path}" == "x" ] && Logger.Exit Failure "Failed to determine DRIVER_PATH: Please ensure 'hdbsql' is correctly installed in the instance 'exe' directory." 108
+		[ "x${Plugin_Hdbsql_Path}" == "x" ] && Logger.Exit Failure "Failed to determine DRIVER_PATH: Please ensure 'hdbsql' is correctly installed in the instance 'exe' directory."
 		Logger.LogPass "Found DRIVER_PATH = '${Plugin_Driver_Path}'."
 
 		if [ "x${Plugin_System_Key_Name}" == "x" ]
@@ -1201,7 +1163,7 @@ Plugin()
 			}
 			else
 			{
-				Logger.Exit Failure "HSR Configuration requires custom backup key, please re-run with custom backup key." 20
+				Logger.Exit Failure "HSR Configuration requires custom backup key, please re-run with custom backup key."
 			}
 			fi
 
@@ -1269,15 +1231,15 @@ Plugin()
 		if [ "${Plugin_Backup_Key_Exists}" -ne "1" ]
 		then
 		{
-			[ "${Plugin_Backup_Key_User}" != "${Constant_Plugin_Default_Backup_Key_User}" ] && Logger.Exit Failure "Will not modify non-standard backup user '${Plugin_Find_Key_User}'." 109
-			[ "x${Plugin_System_Key_Name}" == "x" ] && Logger.Exit Failure "Need a valid system key to create the backup key.\n${Constant_UserHints_SystemKeyCreationMsg}" 21
+			[ "${Plugin_Backup_Key_User}" != "${Constant_Plugin_Default_Backup_Key_User}" ] && Logger.Exit Failure "Will not modify non-standard backup user '${Plugin_Find_Key_User}'."
+			[ "x${Plugin_System_Key_Name}" == "x" ] && Logger.Exit Failure "Need a valid system key to create the backup key.\n${Constant_UserHints_SystemKeyCreationMsg}"
 			Plugin.CheckSystemOverview
 			Plugin.DeleteUser
 			Plugin.CreateUser
 			Plugin.AlterUser
 			Plugin.LoginUser
 			Plugin_Backup_Key_Exists="${Plugin_Login_User_Result}"
-			[ "${Plugin_Backup_Key_Exists}" -ne "1" ] && Logger.Exit Failure "Failed to create and login with backup user." 110
+			[ "${Plugin_Backup_Key_Exists}" -ne "1" ] && Logger.Exit Failure "Failed to create and login with backup user."
 		}
 		else
 		{
@@ -1296,18 +1258,17 @@ Plugin()
 		}
 		fi
 
-		if [[ "${Plugin_Check_User_Result}" != "1" && "${Plugin_HSR_Primary}" -eq "1" && "x${Plugin_Custom_Roles}" != "xtrue" ]]
+		if [[ "${Plugin_Check_User_Result}" != "1" && "${Plugin_HSR_Primary}" -eq "1" ]]
 		then
 		{
-			[ "x${Plugin_System_Key_Name}" == "x" ] && Logger.Exit Failure "Need a valid system key to repair the backup key.\n${Constant_UserHints_SystemKeyCreationMsg}" 21
+			[ "x${Plugin_System_Key_Name}" == "x" ] && Logger.Exit Failure "Need a valid system key to repair the backup key.\n${Constant_UserHints_SystemKeyCreationMsg}"
 			Plugin.GrantUser
 			Plugin.CheckUser
-			[ "${Plugin_Check_User_Result}" != "1" ] && Logger.Exit Failure "Failed to grant backup privileges to backup user." 111
+			[ "${Plugin_Check_User_Result}" != "1" ] && Logger.Exit Failure "Failed to grant backup privileges to backup user."
 		}
 		else
 		{
-			[[ "${Plugin_HSR_Primary}" -eq "0" && "x${Plugin_HSR_Unique_Value}" != "x" ]] && Logger.LogWarning "Skipping grant and user checking for secondary node in HSR configuration." 
-			[[ "x${Plugin_Custom_Roles}" == "xtrue" ]] && Logger.LogWarning "Skipping grant and user checking for custom roles assigned to user."
+			[[ "${Plugin_HSR_Primary}" -eq "0" && "x${Plugin_HSR_Unique_Value}" != "x" ]] && Logger.LogWarning "Skipping grant and user checking for secondary node in HSR configuration."
 		}
 		fi
 
@@ -1361,7 +1322,7 @@ Plugin()
 		{
 			Plugin_Secudir="/usr/sap/${Plugin_Sid}/HDB${Plugin_Instance_Number}/${hostname,,}/sec"
 			Plugin.RunCommand echo "\$HOME"
-			[ "x${Plugin_Run_Command_Status}" != "x0" ] && Logger.Exit Failure "Failed to determine HOME variable for '${Plugin_User}'." 112
+			[ "x${Plugin_Run_Command_Status}" != "x0" ] && Logger.Exit Failure "Failed to determine HOME variable for '${Plugin_User}'."
 			Plugin_Home="${Plugin_Run_Command_Output}"
 
 			Plugin_Encrypt="true"
@@ -1427,17 +1388,17 @@ Plugin()
 			then 
 			{	
 				[ ! -f "$Plugin_Ssl_Key_Store" ] && Plugin_Ssl_Key_Store="${Plugin_Secudir}/${Plugin_Ssl_Key_Store}"
-				[ -f "$Plugin_Ssl_Key_Store" ] && Logger.LogPass "Found SslKeyStore = ${Plugin_Ssl_Key_Store}" || Logger.Exit Failure "SslKeyStore - ${Plugin_Ssl_Key_Store} does not exist. Please specify SslKeyStore file with -sks parameter. Refer to --help for more information." 22
+				[ -f "$Plugin_Ssl_Key_Store" ] && Logger.LogPass "Found SslKeyStore = ${Plugin_Ssl_Key_Store}" || Logger.Exit Failure "SslKeyStore - ${Plugin_Ssl_Key_Store} does not exist. Please specify SslKeyStore file with -sks parameter. Refer to --help for more information."
 				[ ! -f "$Plugin_Ssl_Trust_Store" ] && Plugin_Ssl_Trust_Store="${Plugin_Secudir}/${Plugin_Ssl_Trust_Store}"
-				[ -f "$Plugin_Ssl_Trust_Store" ] && Logger.LogPass "Found SslTrustStore = ${Plugin_Ssl_Trust_Store}" || Logger.Exit Failure "SslTrustStore - ${Plugin_Ssl_Trust_Store} does not exist. Please specify SslTrustStore file with -sts parameter. Refer to --help for more information." 23
+				[ -f "$Plugin_Ssl_Trust_Store" ] && Logger.LogPass "Found SslTrustStore = ${Plugin_Ssl_Trust_Store}" || Logger.Exit Failure "SslTrustStore - ${Plugin_Ssl_Trust_Store} does not exist. Please specify SslTrustStore file with -sts parameter. Refer to --help for more information."
 			
 			} elif [ "${Plugin_Ssl_Crypto_Provider}" == "openssl" ];
 			then
 			{
 				[ ! -f "$Plugin_Ssl_Key_Store" ] && Plugin_Ssl_Key_Store="${Plugin_Home}/.ssl/${Plugin_Ssl_Key_Store}"
-				[ -f "$Plugin_Ssl_Key_Store" ] && Logger.LogPass "Found SslKeyStore = ${Plugin_Ssl_Key_Store}" || Logger.Exit Failure "SslKeyStore - ${Plugin_Ssl_Key_Store} does not exist. Please specify SslKeyStore file with -sks parameter. Refer to --help for more information." 22
+				[ -f "$Plugin_Ssl_Key_Store" ] && Logger.LogPass "Found SslKeyStore = ${Plugin_Ssl_Key_Store}" || Logger.Exit Failure "SslKeyStore - ${Plugin_Ssl_Key_Store} does not exist. Please specify SslKeyStore file with -sks parameter. Refer to --help for more information."
 				[ ! -f "$Plugin_Ssl_Trust_Store" ] && Plugin_Ssl_Trust_Store="${Plugin_Home}/.ssl/${Plugin_Ssl_Trust_Store}"
-				[ -f "$Plugin_Ssl_Trust_Store" ] && Logger.LogPass "Found SslTrustStore = ${Plugin_Ssl_Trust_Store}" || Logger.Exit Failure "SslTrustStore - ${Plugin_Ssl_Trust_Store} does not exist. Please specify SslTrustStore file with -sts parameter. Refer to --help for more information." 23
+				[ -f "$Plugin_Ssl_Trust_Store" ] && Logger.LogPass "Found SslTrustStore = ${Plugin_Ssl_Trust_Store}" || Logger.Exit Failure "SslTrustStore - ${Plugin_Ssl_Trust_Store} does not exist. Please specify SslTrustStore file with -sts parameter. Refer to --help for more information."
 			}
 			fi
 		
@@ -1460,7 +1421,7 @@ Plugin()
 			}
 			fi
 
-			[ "x${Plugin_Host_Name_In_Certificate}" != "x" ] && Logger.LogPass "Found SslHostnameInCertificate = ${Plugin_Host_Name_In_Certificate}" || Logger.Exit Failure "No value for SslHostNameInCertificate found. Please specify SslHostNameInCertificate with -sh parameter. Refer to --help for more information." 24
+			[ "x${Plugin_Host_Name_In_Certificate}" != "x" ] && Logger.LogPass "Found SslHostnameInCertificate = ${Plugin_Host_Name_In_Certificate}" || Logger.Exit Failure "No value for SslHostNameInCertificate found. Please specify SslHostNameInCertificate with -sh parameter. Refer to --help for more information."
 		
 			Logger.LogInformation "SSL is configured."
 		}
@@ -1475,30 +1436,30 @@ Plugin()
 	{
 		Plugin.ReadConfig
 
-		[ "x${Plugin_Config_Sid}" == "x" ] && Logger.Exit Failure "No SID to remove found in configuration." 10
-		[ "x${Plugin_Sid}" == "x" ] && Logger.Exit Failure "The '--sid' option is mandatory for the '--remove' command." 17
-		[ "${Plugin_Config_Sid}" != "${Plugin_Sid}" ] && Logger.Exit Failure "The specified SID is not present in the configuration." 17
+		[ "x${Plugin_Config_Sid}" == "x" ] && Logger.Exit Failure "No SID to remove found in configuration."
+		[ "x${Plugin_Sid}" == "x" ] && Logger.Exit Failure "The '--sid' option is mandatory for the '--remove' command."
+		[ "${Plugin_Config_Sid}" != "${Plugin_Sid}" ] && Logger.Exit Failure "The specified SID is not present in the configuration."
 
 		if [ "x${Plugin_Instance_Number}" == "x" ]
 		then
 		{
 			Logger.LogInformation "Determining INSTANCE_NUMBER."
 			Plugin_Instance_Number="$(ls /usr/sap/${Plugin_Sid} | grep -E "^HDB[0-9]{2}$" | cut -c4- | head -n 1)"
-			[ "x${Plugin_Instance_Number}" == "x" ] && Logger.Exit Failure "Failed to determine INSTANCE_NUMBER: Please specify with the '--instance-number' option." 18
+			[ "x${Plugin_Instance_Number}" == "x" ] && Logger.Exit Failure "Failed to determine INSTANCE_NUMBER: Please specify with the '--instance-number' option."
 		}
 		else
 		{
 			Logger.LogInformation "Using INSTANCE_NUMBER = '${Plugin_Instance_Number}'."
-			[ "${Plugin_Instance_Number}" != "$(echo "${Plugin_Instance_Number}" | grep -E '^[0-9]{2}$')" ] && Logger.Exit Failure "Specified INSTANCE_NUMBER is invalid: Bad format." 18
-			[ ! -d "/usr/sap/${Plugin_Sid}/HDB${Plugin_Instance_Number}" ] && Logger.Exit Failure "Specified INSTANCE_NUMBER is invalid: The directory '/usr/sap/${Plugin_Sid}/HDB${Plugin_Instance_Number}' does not exist." 18
+			[ "${Plugin_Instance_Number}" != "$(echo "${Plugin_Instance_Number}" | grep -E '^[0-9]{2}$')" ] && Logger.Exit Failure "Specified INSTANCE_NUMBER is invalid: Bad format."
+			[ ! -d "/usr/sap/${Plugin_Sid}/HDB${Plugin_Instance_Number}" ] && Logger.Exit Failure "Specified INSTANCE_NUMBER is invalid: The directory '/usr/sap/${Plugin_Sid}/HDB${Plugin_Instance_Number}' does not exist."
 		}
 		fi
 		Logger.LogPass "Found INSTANCE_NUMBER = '${Plugin_Instance_Number}'."
 
 		Logger.LogInformation "Determining USER."
 		Plugin_User="$(stat -c '%U' /usr/sap/${Plugin_Sid} 2>/dev/null)"
-		[ "x${Plugin_User}" == "x" ] && Logger.Exit Failure "Failed to determine USER: Unable to read the owner of the directory '/usr/sap/${Plugin_Sid}'." 104
-		[ "${Plugin_User}" != "${Plugin_Sid,,}adm" ] && Logger.Exit Failure "Failed to determine USER: '${Plugin_User}' does not match with the SID." 104
+		[ "x${Plugin_User}" == "x" ] && Logger.Exit Failure "Failed to determine USER: Unable to read the owner of the directory '/usr/sap/${Plugin_Sid}'."
+		[ "${Plugin_User}" != "${Plugin_Sid,,}adm" ] && Logger.Exit Failure "Failed to determine USER: '${Plugin_User}' does not match with the SID."
 		Logger.LogPass "Found USER = '${Plugin_User}'."
 
 		if [ "x${Plugin_HSR_Unique_Value}" == "x" ]
@@ -1512,7 +1473,7 @@ Plugin()
 				echo "$((0x${portNum}))"
 			}
 			done | grep "^3${Plugin_Instance_Number}1[35]\$" | sort | head -n 1)"
-			[ "x${Plugin_Port_Number}" == "x" ] && Logger.Exit Failure "Failed to determine PORT_NUMBER: Please ensure the index server is running on the SQL port." 105
+			[ "x${Plugin_Port_Number}" == "x" ] && Logger.Exit Failure "Failed to determine PORT_NUMBER: Please ensure the index server is running on the SQL port."
 			Logger.LogPass "Found PORT_NUMBER = '${Plugin_Port_Number}'."
 		}
 		else
@@ -1533,7 +1494,7 @@ Plugin()
 			if [ "${Plugin_HSR_Primary}" -eq "0" ]
 			then
 			{
-				[ "x${Plugin_Port_Number}" == "x" ] && Logger.Exit Failure "For HSR configuration for secondary system please provide the port number. Check -h option." 19
+				[ "x${Plugin_Port_Number}" == "x" ] && Logger.Exit Failure "For HSR configuration for secondary system please provide the port number. Check -h option."
 			}
 			else
 			{
@@ -1545,7 +1506,7 @@ Plugin()
 					echo "$((0x${portNum}))"
 				}
 				done | grep "^3${Plugin_Instance_Number}1[35]\$" | sort | head -n 1)"
-				[ "x${Plugin_Port_Number}" == "x" ] && Logger.Exit Failure "Failed to determine PORT_NUMBER: Please ensure the index server is running on the SQL port." 105
+				[ "x${Plugin_Port_Number}" == "x" ] && Logger.Exit Failure "Failed to determine PORT_NUMBER: Please ensure the index server is running on the SQL port."
 				Logger.LogPass "Found PORT_NUMBER = '${Plugin_Port_Number}'."
 			}
 			fi
@@ -1554,11 +1515,11 @@ Plugin()
 
 		Logger.LogInformation "Determining HDBUSERSTORE_PATH."
 		Plugin_Hdbuserstore_Path="$(ls /usr/sap/${Plugin_Sid}/HDB${Plugin_Instance_Number}/exe/hdbuserstore 2>/dev/null)"
-		[ "x${Plugin_Hdbuserstore_Path}" == "x" ] && Logger.Exit Failure "Failed to determine HDBUSERSTORE_PATH: Please ensure 'hdbuserstore' is correctly installed in the instance 'exe' directory." 108
+		[ "x${Plugin_Hdbuserstore_Path}" == "x" ] && Logger.Exit Failure "Failed to determine HDBUSERSTORE_PATH: Please ensure 'hdbuserstore' is correctly installed in the instance 'exe' directory."
 		Logger.LogPass "Found HDBUSERSTORE_PATH = '${Plugin_Hdbuserstore_Path}'."
 		Logger.LogInformation "Determining HDBSQL_PATH."
 		Plugin_Hdbsql_Path="$(ls /usr/sap/${Plugin_Sid}/HDB${Plugin_Instance_Number}/exe/hdbsql 2>/dev/null)"
-		[ "x${Plugin_Hdbsql_Path}" == "x" ] && Logger.Exit Failure "Failed to determine HDBSQL_PATH: Please ensure 'hdbsql' is correctly installed in the instance 'exe' directory." 108
+		[ "x${Plugin_Hdbsql_Path}" == "x" ] && Logger.Exit Failure "Failed to determine HDBSQL_PATH: Please ensure 'hdbsql' is correctly installed in the instance 'exe' directory."
 		Logger.LogPass "Found HDBSQL_PATH = '${Plugin_Hdbsql_Path}'."
 
 		if [ "x${Plugin_System_Key_Name}" == "x" ]
@@ -1600,7 +1561,7 @@ Plugin()
 
 		Logger.LogInformation "Checking if SID is registered."
 		Plugin_Host_Service_File="${Constant_Plugin_Host_Service_File_Old//\{1\}/${Plugin_Sid,,}}"
-		[ -f "${Plugin_Host_Service_File}" ] && Logger.Exit Failure "SID is still registered. Please un-register it first." 166
+		[ -f "${Plugin_Host_Service_File}" ] && Logger.Exit Failure "SID is still registered. Please un-register it first."
 		Logger.LogPass "SID is un-registered."
 
 		if [ "x${Plugin_Config_Backup_Key_Name}" != "x" ]
@@ -1623,13 +1584,13 @@ Plugin()
 				Plugin_Backup_Key_User="${Plugin_Find_Key_User}"
 				Plugin_Backup_Key_Exists=1
 
-				[ "x${Plugin_Config_Backup_Key_Name}" != "x${Plugin_Backup_Key_Name}" ] && Logger.Exit Failure "BACKUP_KEY_NAME found in configuration and in hdbuserstore do not match." 167
+				[ "x${Plugin_Config_Backup_Key_Name}" != "x${Plugin_Backup_Key_Name}" ] && Logger.Exit Failure "BACKUP_KEY_NAME found in configuration and in hdbuserstore do not match."
 			}
 			fi
 		}
 		else
 		{
-			Logger.Exit Failure "No BACKUP_KEY_NAME found in configuration." 168
+			Logger.Exit Failure "No BACKUP_KEY_NAME found in configuration."
 			Plugin_Backup_Key_Exists=0
 		}
 		fi
@@ -1764,19 +1725,19 @@ Plugin()
 		local systemOverview="${Plugin_Run_Query_Output}"
 
 		local systemOverviewSid="$(echo "${systemOverview}" | awk -F ',' '$1=="System" && $2=="Instance ID" {print $4}')"
-		[ "x${systemOverviewSid}" != "x${Plugin_Sid}" ] && Logger.Exit Failure "Mismatched SID = '${systemOverviewSid}'." 109
+		[ "x${systemOverviewSid}" != "x${Plugin_Sid}" ] && Logger.Exit Failure "Mismatched SID = '${systemOverviewSid}'."
 		Logger.LogInformation "Found SID = '${systemOverviewSid}'."
 
 		local systemOverviewNum="$(echo "${systemOverview}" | awk -F ',' '$1=="System" && $2=="Instance Number" {print $4}')"
-		[ "x${systemOverviewNum}" != "x${Plugin_Instance_Number}" ] && Logger.Exit Failure "Mismatched INSTANCE_NUMBER = '${systemOverviewNum}'." 110
+		[ "x${systemOverviewNum}" != "x${Plugin_Instance_Number}" ] && Logger.Exit Failure "Mismatched INSTANCE_NUMBER = '${systemOverviewNum}'."
 		Logger.LogInformation "Found INSTANCE_NUMBER = '${systemOverviewNum}'."
 
 		local systemOverviewDistributed="$(echo "${systemOverview}" | awk -F ',' '$1=="System" && $2=="Distributed" {print $4}')"
-		[ "x${systemOverviewDistributed}" != "xNo" ] && Logger.Exit Failure "Unsupported INSTANCE_MODE = 'Distributed'." 111
+		[ "x${systemOverviewDistributed}" != "xNo" ] && Logger.Exit Failure "Unsupported INSTANCE_MODE = 'Distributed'."
 		Logger.LogInformation "Found INSTANCE_MODE = 'Standalone'."
 
 		local systemOverviewStatus="$(echo "${systemOverview}" | awk -F ',' '$1=="Services" && $2=="All Started" {print $4}')"
-		[ "x${systemOverviewStatus}" != "xYes" ] && Logger.Exit Failure "Unhealthy instance with SERVICES_ALL_STARTED = 'No'." 112
+		[ "x${systemOverviewStatus}" != "xYes" ] && Logger.Exit Failure "Unhealthy instance with SERVICES_ALL_STARTED = 'No'."
 		Logger.LogInformation "Found SERVICES_ALL_STARTED = 'Yes'."
 
 		Logger.LogPass "System overview checks succeeded."
@@ -1787,7 +1748,7 @@ Plugin()
 		Logger.LogInformation "Deleting BACKUP_KEY_USER = '${Plugin_Backup_Key_User}'."
 		Plugin.RunQueryAsSystem "DROP USER ${Plugin_Backup_Key_User} CASCADE"
 		local deleteResult="${Plugin_Run_Query_Output}"
-		[ "x${deleteResult}" != "x" ] && [ "x$(echo "${deleteResult}" | grep -F ' 332: ')" == "x" ] && Logger.Exit Failure "Failed to delete BACKUP_KEY_USER: '${deleteResult}'." 113
+		[ "x${deleteResult}" != "x" ] && [ "x$(echo "${deleteResult}" | grep -F ' 332: ')" == "x" ] && Logger.Exit Failure "Failed to delete BACKUP_KEY_USER: '${deleteResult}'."
 		if [ "x${deleteResult}" != "x" ]
 		then
 		{
@@ -1820,14 +1781,14 @@ Plugin()
 		local userPassword="$(tr -dc '0-9a-zA-Z@%^_=+.\-' < /dev/urandom | head -c 64)"
 		Plugin.RunQueryAsSystem "CREATE USER ${Plugin_Backup_Key_User} PASSWORD \"${userPassword}\" NO FORCE_FIRST_PASSWORD_CHANGE"
 		local createResult="${Plugin_Run_Query_Output}"
-		[ "x${createResult}" != "x" ] && Logger.Exit Failure "Failed to create BACKUP_KEY_USER: '${createResult}'." 114
+		[ "x${createResult}" != "x" ] && Logger.Exit Failure "Failed to create BACKUP_KEY_USER: '${createResult}'."
 		Logger.LogPass "Created BACKUP_KEY_USER."
 
 		Logger.LogInformation "Creating BACKUP_KEY_NAME = '${Plugin_Backup_Key_Name}'."
 		Plugin.RunCommand unset HDB_USE_IDENT "&&" "${Plugin_Hdbuserstore_Path}" -H "$(hostname)" SET "${Plugin_Backup_Key_Name}" "localhost:${Plugin_Port_Number}" "${Plugin_Backup_Key_User}" "${userPassword}"
 		local createKeyResult="${Plugin_Run_Command_Output}"
 		local createKeyStatus="${Plugin_Run_Command_Status}"
-		[[ "x${createKeyResult}" != "x" && "x${createKeyStatus}" != "x0" ]] && Logger.Exit Failure "Failed to create BACKUP_KEY_NAME: '${createKeyResult}'." 114
+		[[ "x${createKeyResult}" != "x" && "x${createKeyStatus}" != "x0" ]] && Logger.Exit Failure "Failed to create BACKUP_KEY_NAME: '${createKeyResult}'."
 		Logger.LogPass "Created BACKUP_KEY_NAME."
 	}
 
@@ -1836,25 +1797,25 @@ Plugin()
 		Logger.LogInformation "Disabling password lifetime on BACKUP_KEY_USER = '${Plugin_Backup_Key_User}'."
 		Plugin.RunQueryAsSystem "ALTER USER ${Plugin_Backup_Key_User} DISABLE PASSWORD LIFETIME"
 		local alterResult="${Plugin_Run_Query_Output}"
-		[ "x${alterResult}" != "x" ] && Logger.Exit Failure "Failed to disable password lifetime on BACKUP_KEY_USER: '${alterResult}'." 115
+		[ "x${alterResult}" != "x" ] && Logger.Exit Failure "Failed to disable password lifetime on BACKUP_KEY_USER: '${alterResult}'."
 		Logger.LogPass "Disabled password lifetime on BACKUP_KEY_USER."
 
 		Logger.LogInformation "Resetting connection attempts on BACKUP_KEY_USER = '${Plugin_Backup_Key_User}'."
 		Plugin.RunQueryAsSystem "ALTER USER ${Plugin_Backup_Key_User} RESET CONNECT ATTEMPTS"
 		local alterResult="${Plugin_Run_Query_Output}"
-		[ "x${alterResult}" != "x" ] && Logger.Exit Failure "Failed to reset connection attempts on BACKUP_KEY_USER: '${alterResult}'." 115
+		[ "x${alterResult}" != "x" ] && Logger.Exit Failure "Failed to reset connection attempts on BACKUP_KEY_USER: '${alterResult}'."
 		Logger.LogPass "Reset connection attempts on BACKUP_KEY_USER."
 
 		Logger.LogInformation "Activating BACKUP_KEY_USER = '${Plugin_Backup_Key_User}'."
 		Plugin.RunQueryAsSystem "ALTER USER ${Plugin_Backup_Key_User} ACTIVATE USER NOW"
 		local alterResult="${Plugin_Run_Query_Output}"
-		[ "x${alterResult}" != "x" ] && Logger.Exit Failure "Failed to activate BACKUP_KEY_USER: '${alterResult}'." 115
+		[ "x${alterResult}" != "x" ] && Logger.Exit Failure "Failed to activate BACKUP_KEY_USER: '${alterResult}'."
 		Logger.LogPass "Activated BACKUP_KEY_USER."
 	}
 
 	Plugin.LoginUser()
 	{
-		Logger.LogInformation "Checking login for BACKUP_KEY_USER = '${Plugin_Backup_Key_User}'." 
+		Logger.LogInformation "Checking login for BACKUP_KEY_USER = '${Plugin_Backup_Key_User}'."
 		Plugin.RunQueryAsBackup "SELECT CURRENT_USER FROM DUMMY"
 		local checkResult="${Plugin_Run_Query_Output}"
 		if [ "${checkResult^^}" != "${Plugin_Backup_Key_User^^}" ]
@@ -1876,7 +1837,7 @@ Plugin()
 		Logger.LogInformation "Granting privilege '${1}' to '${Plugin_Backup_Key_User}'."
 		Plugin.RunQueryAsSystem "GRANT ${1} TO ${Plugin_Backup_Key_User}"
 		local grantResult="${Plugin_Run_Query_Output}"
-		[ "x${grantResult}" != "x" ] && Logger.Exit Failure "Failed to grant privilege: '${grantResult}'." 116
+		[ "x${grantResult}" != "x" ] && Logger.Exit Failure "Failed to grant privilege: '${grantResult}'."
 		Logger.LogPass "Granted privilege."
 	}
 
@@ -1985,7 +1946,7 @@ Plugin()
 
 		result="$("${Package_Python_Executable}" -c $'import json\n'"with open('${Constant_Plugin_Config_File_Old}', 'r') as config: print(len(json.load(config)))" 2>&1)"
 		[ "${?}" -ne "0" ] && Logger.LogInformation "No valid existing configuration found." && return
-		[ "${result}" -ne "1" ] && Logger.Exit Failure "More than one SID found in existing configuration: Not supported." 117
+		[ "${result}" -ne "1" ] && Logger.Exit Failure "More than one SID found in existing configuration: Not supported."
 
 		result="$("${Package_Python_Executable}" -c $'import json\n'"with open('${Constant_Plugin_Config_File_Old}', 'r') as config: print(json.load(config)[0]['LogicalContainerId'])" 2>&1)"
 		[ "${?}" -eq "0" ] && Plugin_Config_Sid="${result}" && Logger.LogInformation "Found SID = '${Plugin_Config_Sid}'."
@@ -2034,8 +1995,7 @@ obj=[
 			'sslCryptoProvider':'${Plugin_Ssl_Crypto_Provider}',
 			'sslHostNameInCertificate':'${Plugin_Host_Name_In_Certificate}',
 			'sslValidateCertificate':'${Plugin_Ssl_Validate_Certificate}',
-			'isADUser':'${Plugin_AD_User}',
-			'customRoles':'${Plugin_Custom_Roles}'
+			'isADUser':'${Plugin_AD_User}'
 		}
 	}
 ]
@@ -2043,7 +2003,7 @@ with open('${Constant_Plugin_Config_File_Old}', 'w') as config:
 	json.dump(obj, config, indent = 4, sort_keys = True)
 " 2>&1)"
 
-			[[ "x${Plugin_HSR_Unique_Value}" == "x" &&  "${?}" -ne "0" ]] && Logger.Exit Failure "Failed to write configuration: '${result}'." 118
+			[[ "x${Plugin_HSR_Unique_Value}" == "x" &&  "${?}" -ne "0" ]] && Logger.Exit Failure "Failed to write configuration: '${result}'."
 
 			[ "x${Plugin_HSR_Unique_Value}" != "x" ] && result="$("${Package_Python_Executable}" -c "
 import json
@@ -2062,8 +2022,7 @@ obj=[
 			'sslCryptoProvider':'${Plugin_Ssl_Crypto_Provider}',
 			'sslHostNameInCertificate':'${Plugin_Host_Name_In_Certificate}',
 			'sslValidateCertificate':'${Plugin_Ssl_Validate_Certificate}',
-			'isADUser':'${Plugin_AD_User}',
-			'customRoles':'${Plugin_Custom_Roles}'
+			'isADUser':'${Plugin_AD_User}'
 		}
 	}
 ]
@@ -2071,7 +2030,7 @@ with open('${Constant_Plugin_Config_File_Old}', 'w') as config:
 	json.dump(obj, config, indent = 4, sort_keys = True)
 " 2>&1)"
 
-			[[ "x${Plugin_HSR_Unique_Value}" != "x" &&  "${?}" -ne "0" ]] && Logger.Exit Failure "Failed to write configuration: '${result}'." 118
+			[[ "x${Plugin_HSR_Unique_Value}" != "x" &&  "${?}" -ne "0" ]] && Logger.Exit Failure "Failed to write configuration: '${result}'."
 
 		}
 		elif [ "${Plugin_Mode}" == "remove" ]
@@ -2100,9 +2059,9 @@ with open('${Constant_Plugin_Config_File_Old}', 'w') as config:
 		{
 			local result
 			[ "x${Plugin_Encrypt}" == "x" ] && result="$(printf "%b" "TINSTANCE=${Plugin_Instance_Number}\n" "LD_LIBRARY_PATH=${Plugin_Ld_Library_Path}\n" > ${Plugin_Host_Environment_File})"
-			[[ "x${Plugin_Encrypt}" == "x" &&  "${?}" -ne "0" ]] && Logger.Exit Failure "Failed to write environment file: '${result}'." 119
+			[[ "x${Plugin_Encrypt}" == "x" &&  "${?}" -ne "0" ]] && Logger.Exit Failure "Failed to write environment file: '${result}'."
 			[ "x${Plugin_Encrypt}" == "xtrue" ] && result="$(printf "%b" "TINSTANCE=${Plugin_Instance_Number}\n" "LD_LIBRARY_PATH=${Plugin_Ld_Library_Path}\n" "SECUDIR=${Plugin_Secudir}\n" "HOME=${Plugin_Home}\n" > ${Plugin_Host_Environment_File})"
-			[[ "x${Plugin_Encrypt}" == "xtrue" && "${?}" -ne "0" ]] && Logger.Exit Failure "Failed to write environment file: '${result}'." 119
+			[[ "x${Plugin_Encrypt}" == "xtrue" && "${?}" -ne "0" ]] && Logger.Exit Failure "Failed to write environment file: '${result}'."
 		}
 		elif [ "${Plugin_Mode}" == "remove" ]
 		then
@@ -2119,7 +2078,7 @@ with open('${Constant_Plugin_Config_File_Old}', 'w') as config:
 		Logger.LogInformation "Adding user '${Plugin_User}' to group '${Constant_Msawb_Group_Secondary}'."
 		local result && result="$(gpasswd --add "${Plugin_User}" "${Constant_Msawb_Group_Secondary}" 2>&1)"
 		[ "${?}" -eq "0" ] && Logger.LogPass "Successfully added user." && return
-		Logger.Exit Failure "Failed to add user: '${result}'." 120
+		Logger.Exit Failure "Failed to add user: '${result}'."
 	}
 
 	Plugin.CheckIfUserIsAddedToGroup()
@@ -2127,7 +2086,7 @@ with open('${Constant_Plugin_Config_File_Old}', 'w') as config:
 		Logger.LogInformation "Checking if user '${Plugin_User}' is added to group '${Constant_Msawb_Group_Secondary}'."
 		local result && result="$(id "${Plugin_User}" | grep -o "${Constant_Msawb_Group_Secondary}" 2>&1)"
 		[ "${?}" -eq "0" ] && [ "${result}" == "${Constant_Msawb_Group_Secondary}" ] && Logger.LogPass "User is already added to group." && return
-		Logger.Exit Failure "AD user '${Plugin_User}' is not added to ${Constant_Msawb_Group_Secondary} group. Create a group '${Constant_Msawb_Group_Secondary}' in your active directory, add '${Plugin_User}' to it and re-run the script with -ad option." 121 
+		Logger.Exit Failure "AD user '${Plugin_User}' is not added to ${Constant_Msawb_Group_Secondary} group. Create a group '${Constant_Msawb_Group_Secondary}' in your active directory, add '${Plugin_User}' to it and re-run the script with -ad option."
 	}
 
 	Plugin.RemoveSupplementaryGroupFromUser()
@@ -2135,7 +2094,7 @@ with open('${Constant_Plugin_Config_File_Old}', 'w') as config:
 		Logger.LogInformation "Removing user '${Plugin_User}' from group '${Constant_Msawb_Group_Secondary}'."
 		local result && result="$(gpasswd --delete "${Plugin_User}" "${Constant_Msawb_Group_Secondary}" 2>&1)"
 		[ "${?}" -eq "0" ] && Logger.LogPass "Successfully removed user." && return
-		Logger.Exit Failure "Failed to remove user: '${result}'." 122
+		Logger.Exit Failure "Failed to remove user: '${result}'."
 	}
 
 	Plugin.Help()
@@ -2208,18 +2167,6 @@ with open('${Constant_Plugin_Config_File_Old}', 'w') as config:
 			  -sn, --skip-network-checks
 			    Specify this switch to skip outbound network connectivity checks.
 
-			  -hn HSR_Unique_Value, --hsr-unique-value HSR_Unique_Value
-			    Specify the Unique value of HANA SYSTEM REPLICATION Unique value that should be used
-			    on all the nodes in same HANA SYSTEM REPLICATION. Suppose M1 is primary Hana system 
-			    and M2 is secondary Hana system in particular HSR configuration. Then user should 
-			    provide same unique value to both the nodes M1 and M2. Also node this parameter 
-			    should always be used with the -bk parameter.
-
-			  -p PORT_NUMBER, --port-number PORT_NUMBER
-			    PORT_NUMBER of the Hana system. For MDC : "3"+instance number+"13"
-			    For SDC : "3"+instance number+"15". For secondary system in HSR it is not feasible to run
-			    any query to determine whether system is SDC or MDC.
-
 			  -sks SSL_KEY_STORE, --sslkeystore SSL_KEY_STORE
 			    Specify the name of the keystore file that contains the client's identity (eg. sapsrv.pse).
 			    The script will search for the file in the appropriate directory depending on the cryptoprovider mentioned.
@@ -2279,7 +2226,7 @@ Main()
 		[ "${result}" == "${Constant_Msawb_Group_Secondary}" ] && Logger.LogPass "Group already exists." && return
 		result="$(groupadd "${Constant_Msawb_Group_Secondary}" 2>&1)"
 		[ "${?}" -eq "0" ] && Logger.LogPass "Successfully created group." && return
-		Logger.Exit Failure "Failed to create group: '${result}'." 123
+		Logger.Exit Failure "Failed to create group: '${result}'."
 	}
 
 	Main.UpdateScript()
@@ -2288,14 +2235,14 @@ Main()
 		Logger.LogInformation "Downloading server script version to '${newScriptTempPath}'."
 		local response && response="$(curl --silent --output "${newScriptTempPath}" --location --request GET "${Constant_Script_Source_Url}" --write-out "%{http_code}\n")"
 		local status="${?}"
-		[ "${status}" -ne "0" ] && Logger.Exit Failure "Failed to download: Received from curl: '${status}'." 124
-		[ "${response}" != "200" ] && Logger.Exit Failure "Failed to download: Received from service: 'HTTP/${response}'." 124
+		[ "${status}" -ne "0" ] && Logger.Exit Failure "Failed to download: Received from curl: '${status}'."
+		[ "${response}" != "200" ] && Logger.Exit Failure "Failed to download: Received from service: 'HTTP/${response}'."
 		Logger.LogPass "Successfully downloaded."
 		chmod +x "${newScriptTempPath}"
 		Logger.LogInformation "Current script version is '${Constant_Script_Version}'."
 		Logger.LogInformation "Server script version is '$("${newScriptTempPath}" --version | head -n 1 | cut -d ' ' -f 2)'."
 		Logger.LogInformation "Replacing the current script with the server version."
-		mv "${newScriptTempPath}" "${Constant_Script_Path}" || Logger.Exit Failure "Failed to replace: '${?}'." 124
+		mv "${newScriptTempPath}" "${Constant_Script_Path}" || Logger.Exit Failure "Failed to replace: '${?}'."
 		Logger.LogPass "Replaced."
 	}
 

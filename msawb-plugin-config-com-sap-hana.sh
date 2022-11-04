@@ -24,7 +24,7 @@ Constant()
 		Constant_Plugin_Host_Service_File="/usr/lib/systemd/system/msawb-pluginhost-${Constant_Plugin_Name}-{1}.service"
 		Constant_Plugin_Host_Service_File_Old="/usr/lib/systemd/system/msawb-pluginhost-saphana-{1}.service"
 
-		Constant_Script_Version="2.1.0.1"
+		Constant_Script_Version="2.1.0.0"
 		Constant_Script_Name="$(basename "${0}")"
 		Constant_Script_Path="$(realpath "${0}")"
 		Constant_Script_Directory="$(dirname "${Constant_Script_Path}")"
@@ -265,7 +265,7 @@ Package()
 			"SLES")
 			{
 				case "${Package_OS_Version}" in
-					"15" | "15.1" | "15.2" | "15.3" | "15.4" )
+					"15" | "15.1" | "15.2")
 					{
 						Package_Python_Executable=${Package_Python3_Executable}
 						Package.Require Python3
@@ -542,8 +542,6 @@ Check()
 			SLES_SAP-15.2
 			SLES-15.3
 			SLES_SAP-15.3
-			SLES-15.4
-			SLES_SAP-15.4
 			RHEL-7.4
 			RHEL-7.5
 			RHEL-7.6

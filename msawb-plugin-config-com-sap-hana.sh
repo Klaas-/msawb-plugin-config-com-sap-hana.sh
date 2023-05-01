@@ -24,12 +24,14 @@ Constant()
 		Constant_Plugin_Host_Service_File="/usr/lib/systemd/system/msawb-pluginhost-${Constant_Plugin_Name}-{1}.service"
 		Constant_Plugin_Host_Service_File_Old="/usr/lib/systemd/system/msawb-pluginhost-saphana-{1}.service"
 
-		Constant_Script_Version="2.1.0.1"
+		Constant_Script_Version="2.1.0.2"
 		Constant_Script_Name="$(basename "${0}")"
 		Constant_Script_Path="$(realpath "${0}")"
 		Constant_Script_Directory="$(dirname "${Constant_Script_Path}")"
 		Constant_Script_User="$(whoami)"
-		Constant_Script_Log_File="${Constant_Msawb_Home}/var/log/plugins/${Constant_Plugin_Name}/config.$(date +%s).log"
+		Constant_Script_Log_Base_Path="${Constant_Msawb_Home}/var/log/plugins/${Constant_Plugin_Name}"
+		Constant_Script_Log_File="${Constant_Script_Log_Base_Path}/config.$(date +%s).log"
+		Constant_Script_Log_Error_File="${Constant_Script_Log_Base_Path}/config-out.json"
 		Constant_Script_Source_Url="https://aka.ms/scriptforpermsonhana"
 
 		Constant_UserHints_SystemKeyCreationMsg="Please create a system key for the system user by running the following command as <sid>adm user\n\n\nfor the mdc machine-\nhdbuserstore set <SYSTEM KEY NAME> localhost:3<INSTANCE_NUMBER>13 SYSTEM '<PASSWORD FOR SYSTEM USER>'\nFor sdc machine -\nhdbuserstore set <SYSTEM KEY NAME> localhost:3<INSTANCE_NUMBER>15 SYSTEM '<PASSWORD FOR SYSTEM USER>'\n\n\nThis system key can be deleted after creation of backup user."
@@ -70,6 +72,8 @@ Errno()
 Logger()
 {
 	{
+		Logger_Verbose="false"
+
 		if [ "${Constant_Script_User}" == "${Constant_Msawb_User}" ]
 		then
 		{
@@ -112,6 +116,27 @@ Logger()
 		Logger.LogMessage "\e[1;37m" "[INFO]" "${@}"
 	}
 
+	Logger.LogOutput()
+	{
+		[[ "${Constant_Script_User}" != "${Constant_Msawb_User}" || "${#}" -ne 2 ]] && return
+
+		local errdetails=""
+		local errno="${2}"
+
+		if [ "${errno}" -eq 0 ]
+		then
+		{
+			errdetails="Success"
+		}
+		else
+		{
+			errdetails="${1}"
+		}
+		fi
+
+		echo {\"ScriptVersion\":\"${Constant_Script_Version}\", \"ExitCode\":\"${errno}\", \"ErrorDetails\":\"${errdetails}\"} > "${Constant_Script_Log_Error_File}" 
+	}
+
 	Logger.Exit()
 	{
 		if [ "${#}" -eq 0 ]
@@ -152,6 +177,13 @@ Logger()
 		}
 		fi
 
+		if [ "x${Logger_Verbose}" == "xtrue" ]
+		then
+		{
+			Logger.LogOutput "${message}" "${errno}"
+		}
+		fi
+		
 		exec 3>&-
 		exit "${errno}"
 	}
@@ -164,6 +196,11 @@ Logger()
 	Logger.ExitOnArgumentUnexpected()
 	{
 		[ "${#}" -ne 0 ] && Logger.Exit Argument_Unexpected "${1}"
+	}
+
+	Logger.SetVerboseLogging()
+	{
+		Logger_Verbose="true"
 	}
 }
 
@@ -240,6 +277,10 @@ Package()
 		Package_Unzip_RHEL="unzip"
 		Package_Unzip_SLES_Upgrade="true"
 		Package_Unzip_RHEL_Upgrade="true"
+
+		Package_OpenSSL_Version_Min="1.1.1k"
+		Package_OpenSSL_Version_Rec="1.1.1k"
+		Package_OpenSSL_RHEL="compat-openssl11"
 	}
 
 	Package.Update()
@@ -266,6 +307,21 @@ Package()
 			{
 				case "${Package_OS_Version}" in
 					"15" | "15.1" | "15.2" | "15.3" | "15.4" )
+					{
+						Package_Python_Executable=${Package_Python3_Executable}
+						Package.Require Python3
+					};;
+					*)
+					{
+						Package_Python_Executable=${Package_Python2_Executable}
+						Package.Require Python2
+					};;
+				esac
+			};;
+			"RHEL")
+			{
+				case "${Package_OS_Version}" in
+					"9.0" )
 					{
 						Package_Python_Executable=${Package_Python3_Executable}
 						Package.Require Python3
@@ -305,6 +361,21 @@ Package()
 			*)
 			{
 				Package.Require UnixODBC
+			};;
+		esac
+	}
+
+	Package.RequireOpenSSL()
+	{
+		case "${Package_OS_Name}" in
+			"RHEL")
+			{
+				case "${Package_OS_Version}" in
+					"9.0" )
+					{
+						Package.Require OpenSSL "true"
+					};;
+				esac
 			};;
 		esac
 	}
@@ -553,6 +624,7 @@ Check()
 			RHEL-8.2
 			RHEL-8.4
 			RHEL-8.6
+			RHEL-9.0
 		Check_OS_Name_Version_Supported_EOF
 		[ "${?}" -ne "0" ] && Logger.Exit Failure "Found unsupported OS_NAME_VERSION = '${Check_OS_Name_Version}'.\n${Constant_PreRequisitesMsg}" 100
 		Logger.LogPass "Found supported OS_NAME_VERSION = '${Check_OS_Name_Version}'."
@@ -761,15 +833,12 @@ Check()
 		Logger.LogInformation "Checking for free space in '/opt'."
 		local availSpaceInGB="$(df --block-size 1073741824 --output=avail /opt | tail -n 1 | tr -d '[:space:]')"
 		[ "${availSpaceInGB}" -lt "2" ] && Logger.Exit Failure "Found less than 2 GiB space on '/opt'.\n${Constant_PreRequisitesMsg}" 103
-		if [ "${availSpaceInGB}" -lt "4" ]
-		then
-		{
-			local rootPartition="$(df / | awk '/^\/dev/ {print $1}')"
-			local msawbPartition="$(df ${Constant_Msawb_Home} | awk '/^\/dev/ {print $1}')"
-			[[ "$rootPartition" == "$msawbPartition" ]] && Logger.LogWarning "Note that the ${Constant_Msawb_Home} folder is in the root partition which has less than 4 GB available in size - this could lead to the root partition getting full and failing the backups.\nWe recommend you to either increase the available size of root partition to 4 GB or move the ${Constant_Msawb_Home} folder to another partition in the HANA system later."
-		}
-		fi
 		Logger.LogPass "Found at least 2 GiB space on '/opt'."
+
+		# Logger.LogInformation "Checking for free space in '/var/log'."
+		# local availSpaceInGB="$(df --block-size 1073741824 --output=avail /var/log | tail -n 1 | tr -d '[:space:]')"
+		# [ "${availSpaceInGB}" -lt "2" ] && Logger.Exit Failure "Found less than 2 GiB space on '/var/log'.\n${Constant_PreRequisitesMsg}" 103
+		# Logger.LogPass "Found at least 2 GiB space on '/var/log'."
 	}
 }
 
@@ -828,6 +897,12 @@ Plugin()
 					shift
 					Logger.ExitOnArgumentUnexpected "${@}"
 					Plugin.Version
+				};;
+
+				"--verbose")
+				{
+					shift
+					Logger.SetVerboseLogging
 				};;
 
 				"-a"|"--add")
@@ -973,6 +1048,7 @@ Plugin()
 	Plugin.Add()
 	{
 		Package.RequireUnixODBC
+		Package.RequireOpenSSL
 
 		Plugin.ReadConfig
 
@@ -1154,6 +1230,17 @@ Plugin()
 		[ "x${Plugin_Hdbsql_Path}" == "x" ] && Logger.Exit Failure "Failed to determine DRIVER_PATH: Please ensure 'hdbsql' is correctly installed in the instance 'exe' directory." 108
 		Logger.LogPass "Found DRIVER_PATH = '${Plugin_Driver_Path}'."
 
+		if [[ "${Plugin_HSR_Primary}" -eq "1" || "x${Plugin_HSR_Unique_Value}" == "x" ]]
+		then
+		{
+			Plugin_Allow_Virtual_Hostnames=""
+		}
+		else
+		{
+			Plugin_Allow_Virtual_Hostnames="true"
+		}
+		fi
+
 		if [ "x${Plugin_System_Key_Name}" == "x" ]
 		then
 		{
@@ -1191,6 +1278,25 @@ Plugin()
 		}
 		fi
 
+		Plugin.FindHostnameByKey "${Plugin_System_Key_Name}" "${Plugin_Allow_Virtual_Hostnames}"
+		if [[ "x${Plugin_Find_Hostname}" != "x" && "x${Plugin_Find_Hostname}" != "x${Plugin_System_Host_Name}" ]]
+		then
+		{
+			Logger.LogPass "Found HANA hostname = '${Plugin_Find_Hostname}'."
+			Plugin_Hostname="${Plugin_Find_Hostname}"
+		}
+		elif [[ "x${Plugin_Find_Hostname}" == "x${Plugin_System_Host_Name}" ]]
+		then
+		{
+			Plugin_Hostname="${Plugin_System_Host_Name}"
+		}
+		else
+		{
+			Logger.LogWarning "Failed to determine HANA hostname."
+			Plugin_Hostname="localhost"
+		}
+		fi
+
 		if [ "x${Plugin_Backup_Key_Name}" == "x" ]
 		then
 		{
@@ -1208,7 +1314,8 @@ Plugin()
 			fi
 
 			Logger.LogInformation "Determining BACKUP_KEY_NAME."
-			Plugin.FindKeyByUser "${Constant_Plugin_Default_Backup_Key_User}" "$(hostname)"
+			
+			Plugin.FindKeyByUser "${Constant_Plugin_Default_Backup_Key_User}" "$(hostname)" "${Plugin_Allow_Virtual_Hostnames}"
 
 			if [ "x${Plugin_Find_Key_Name}" == "x" ]
 			then
@@ -1230,7 +1337,7 @@ Plugin()
 		else
 		{
 			Logger.LogInformation "Using BACKUP_KEY_NAME = '${Plugin_Backup_Key_Name}'."
-			Plugin.FindKeyByName "${Plugin_Backup_Key_Name}" "$(hostname)"
+			Plugin.FindKeyByName "${Plugin_Backup_Key_Name}" "$(hostname)" "${Plugin_Allow_Virtual_Hostnames}"
 
 			if [ "x${Plugin_Find_Key_Name}" == "x" ]
 			then
@@ -1271,15 +1378,24 @@ Plugin()
 		if [ "${Plugin_Backup_Key_Exists}" -ne "1" ]
 		then
 		{
-			[ "${Plugin_Backup_Key_User}" != "${Constant_Plugin_Default_Backup_Key_User}" ] && Logger.Exit Failure "Will not modify non-standard backup user '${Plugin_Find_Key_User}'." 109
-			[ "x${Plugin_System_Key_Name}" == "x" ] && Logger.Exit Failure "Need a valid system key to create the backup key.\n${Constant_UserHints_SystemKeyCreationMsg}" 21
-			Plugin.CheckSystemOverview
-			Plugin.DeleteUser
-			Plugin.CreateUser
-			Plugin.AlterUser
-			Plugin.LoginUser
-			Plugin_Backup_Key_Exists="${Plugin_Login_User_Result}"
-			[ "${Plugin_Backup_Key_Exists}" -ne "1" ] && Logger.Exit Failure "Failed to create and login with backup user." 110
+			if [[ "${Plugin_HSR_Primary}" -eq "1" || "x${Plugin_HSR_Unique_Value}" == "x" ]]
+			then
+			{
+				[ "${Plugin_Backup_Key_User}" != "${Constant_Plugin_Default_Backup_Key_User}" ] && Logger.Exit Failure "Will not modify non-standard backup user '${Plugin_Find_Key_User}'." 109
+				[ "x${Plugin_System_Key_Name}" == "x" ] && Logger.Exit Failure "Need a valid system key to create the backup key.\n${Constant_UserHints_SystemKeyCreationMsg}" 21
+				Plugin.CheckSystemOverview
+				Plugin.DeleteUser
+				Plugin.CreateUser
+				Plugin.AlterUser
+				Plugin.LoginUser
+				Plugin_Backup_Key_Exists="${Plugin_Login_User_Result}"
+				[ "${Plugin_Backup_Key_Exists}" -ne "1" ] && Logger.Exit Failure "Failed to create and login with backup user." 110
+			}
+			else
+			{
+				Logger.Exit Failure "Failed to create backup user for secondary node in HSR configuration. Please specify a valid backup key using the -bk parameter." 110
+			}
+			fi
 		}
 		else
 		{
@@ -1361,9 +1477,11 @@ Plugin()
 		if [ "${sslEnforce}" == "true" ];
 		then
 		{
-			Plugin_Secudir="/usr/sap/${Plugin_Sid}/HDB${Plugin_Instance_Number}/${hostname,,}/sec"
+			Plugin.RunCommand echo "\$SECUDIR"
+			[ "x${Plugin_Run_Command_Output}" == "x" ] && Plugin_Secudir="/usr/sap/${Plugin_Sid}/HDB${Plugin_Instance_Number}/${hostname,,}/sec"
+			Plugin_Secudir="${Plugin_Run_Command_Output}"
 			Plugin.RunCommand echo "\$HOME"
-			[ "x${Plugin_Run_Command_Status}" != "x0" ] && Logger.Exit Failure "Failed to determine HOME variable for '${Plugin_User}'." 112
+			[ "x${Plugin_Run_Command_Output}" == "x" ] && Logger.Exit Failure "Failed to determine HOME variable for '${Plugin_User}'." 112
 			Plugin_Home="${Plugin_Run_Command_Output}"
 
 			Plugin_Encrypt="true"
@@ -1646,6 +1764,7 @@ Plugin()
 	{
 		local keyName="${1}"
 		local hostName="${2}"
+		local allowVirtualHostNames="${3}"
 		local hdbuserstoreArgs=()
 		if [ "x${hostName}" != "x" ]
 		then
@@ -1665,15 +1784,26 @@ Plugin()
 		do echo "${Check_Hostnames}" | while read -r checkHostname
 		do [ "x${checkHostname}:${Plugin_Port_Number}" == "x${hdbHostEnv}" ] && echo "${hdbHostKey}" && break
 		done; done; done | sort | uniq)"
+		if [[ "x${allowVirtualHostNames}" != "x" && "x${Plugin_Read_Instance_Keys}" == "x" ]]
+		then
+		{
+			Plugin_Read_Instance_Keys="$(echo "${hdbHostKeys}" | while read -r hdbHostKey
+			do echo "${hdbHostKey}" | sed -r 's/^.*ENV="([^"]+)".*$/\1/' | tr "," "\n" | while read -r hdbHostEnv
+			do echo "${hdbHostKey}" && break
+			done; done | sort | uniq)"
+			[ "x${Plugin_Read_Instance_Keys}" != "x" ] && Logger.LogWarning "KEY ${keyName} is using a virtual hostname, please ensure that this is correct and intentional."
+		}
+		fi
 	}
 
 	Plugin.FindKeyByName()
 	{
 		local keyName="${1}"
 		local hostName="${2}"
+		local allowVirtualHostNames="${3}"
 		Plugin_Find_Key_Name=""
 		Plugin_Find_Key_User=""
-		Plugin.ReadInstanceKeys "${keyName}" "${hostName}"
+		Plugin.ReadInstanceKeys "${keyName}" "${hostName}" "${allowVirtualHostNames}"
 		local hdbUserKeys="$(echo "${Plugin_Read_Instance_Keys}" | grep -F "KEY=\"${keyName}\"")"
 		[ "x${hdbUserKeys}" != "x" ] && Plugin_Find_Key_Name="${keyName}" && Plugin_Find_Key_User="$(echo "${hdbUserKeys}" | head -n 1 | sed -r 's/^.*USER="([^"]+)".*$/\1/')"
 	}
@@ -1682,11 +1812,23 @@ Plugin()
 	{
 		local userName="${1}"
 		local hostName="${2}"
+		local allowVirtualHostNames="${3}"
 		Plugin_Find_Key_Name=""
 		Plugin_Find_Key_User=""
-		Plugin.ReadInstanceKeys "" "${hostName}"
+		Plugin.ReadInstanceKeys "" "${hostName}" "${allowVirtualHostNames}"
 		local hdbUserKeys="$(echo "${Plugin_Read_Instance_Keys}" | grep -F "USER=\"${userName}\"")"
 		[ "x${hdbUserKeys}" != "x" ] && Plugin_Find_Key_Name="$(echo "${hdbUserKeys}" | head -n 1 | sed -r 's/^.*KEY="([^"]+)".*$/\1/')" && Plugin_Find_Key_User="${userName}"
+	}
+
+	Plugin.FindHostnameByKey()
+	{
+		local keyName="${1}"
+		local hostName="${2}"
+		local allowVirtualHostNames="${3}"
+		Plugin_Find_Hostname=""
+		Plugin.ReadInstanceKeys "${keyName}" "${hostName}" "${allowVirtualHostNames}"
+		local hdbUserKeys="$(echo "${Plugin_Read_Instance_Keys}" | grep -F "KEY=\"${keyName}\"")"
+		[ "x${hdbUserKeys}" != "x" ] && Plugin_Find_Hostname="$(echo "${hdbUserKeys}" | head -n 1 | sed -r 's/^.*ENV="([^"]+)".*$/\1/' | cut -d ":" -f 1)"
 	}
 
 	Plugin.RunCommand()
@@ -1723,7 +1865,7 @@ Plugin()
 		local hostName="${3}"
 		local hdbsqlArgs=()
 		[ "x${hostName}" != "x" ] && hdbsqlArgs+=("export" "HDB_USE_IDENT=\"${hostName}\"" "&&")
-		hdbsqlArgs+=("${Plugin_Hdbsql_Path}" -i "${Plugin_Instance_Number}" -n "localhost:${Plugin_Port_Number}")
+		hdbsqlArgs+=("${Plugin_Hdbsql_Path}" -i "${Plugin_Instance_Number}" -n "${Plugin_Hostname}:${Plugin_Port_Number}")
 		[ "${Plugin_Instance_Type}" == "MDC" ] && hdbsqlArgs+=(-d SYSTEMDB)
 		if [ "${Plugin_Encrypt}" == "true" ];
 		then
@@ -1826,7 +1968,7 @@ Plugin()
 		Logger.LogPass "Created BACKUP_KEY_USER."
 
 		Logger.LogInformation "Creating BACKUP_KEY_NAME = '${Plugin_Backup_Key_Name}'."
-		Plugin.RunCommand unset HDB_USE_IDENT "&&" "${Plugin_Hdbuserstore_Path}" -H "$(hostname)" SET "${Plugin_Backup_Key_Name}" "localhost:${Plugin_Port_Number}" "${Plugin_Backup_Key_User}" "${userPassword}"
+		Plugin.RunCommand unset HDB_USE_IDENT "&&" "${Plugin_Hdbuserstore_Path}" -H "$(hostname)" SET "${Plugin_Backup_Key_Name}" "${Plugin_Hostname}:${Plugin_Port_Number}" "${Plugin_Backup_Key_User}" "${userPassword}"
 		local createKeyResult="${Plugin_Run_Command_Output}"
 		local createKeyStatus="${Plugin_Run_Command_Status}"
 		[[ "x${createKeyResult}" != "x" && "x${createKeyStatus}" != "x0" ]] && Logger.Exit Failure "Failed to create BACKUP_KEY_NAME: '${createKeyResult}'." 114

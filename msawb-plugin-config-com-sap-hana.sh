@@ -24,7 +24,7 @@ Constant()
 		Constant_Plugin_Host_Service_File="/usr/lib/systemd/system/msawb-pluginhost-${Constant_Plugin_Name}-{1}.service"
 		Constant_Plugin_Host_Service_File_Old="/usr/lib/systemd/system/msawb-pluginhost-saphana-{1}.service"
 
-		Constant_Script_Version="2.1.0.3"
+		Constant_Script_Version="2.1.0.2"
 		Constant_Script_Name="$(basename "${0}")"
 		Constant_Script_Path="$(realpath "${0}")"
 		Constant_Script_Directory="$(dirname "${Constant_Script_Path}")"
@@ -835,31 +835,10 @@ Check()
 		[ "${availSpaceInGB}" -lt "2" ] && Logger.Exit Failure "Found less than 2 GiB space on '/opt'.\n${Constant_PreRequisitesMsg}" 103
 		Logger.LogPass "Found at least 2 GiB space on '/opt'."
 
-		local isAlreadyRegistered="$(ls -A /opt/msawb/var/lib/catalog/RegisteredObjectInfoCatalog/RegisteredObjectInfoTable/*.bin 2>/dev/null)"
-		
-		if [[ "x${isAlreadyRegistered}" == "x" || -f "/etc/opt/msawb/config/CreateLogSoftLinkTestHook.txt" ]]
-		then
-		{
-			Logger.LogInformation "Checking for free space in '/var/log'."
-			local availSpaceInGB="$(df --block-size 1073741824 --output=avail /var/log | tail -n 1 | tr -d '[:space:]')"
-			if [[ "${availSpaceInGB}" -gt "5" ]]
-			then
-			{
-				Logger.LogPass "Found at least 5 GiB space on '/var/log'."
-			}
-			elif [[ "${availSpaceInGB}" -lt "5" && "${availSpaceInGB}" -gt "2" ]]
-			then
-			{
-				Logger.LogWarning "Found less than 5 GiB space but atleast 2 GiB on '/var/log'. Recommended free space on /var/log is atleast 5 GiB."
-			}
-			elif [[ "${availSpaceInGB}" -lt "2" ]]
-			then
-			{
-				Logger.Exit Failure "Found less than 2 GiB space on '/var/log'.\n${Constant_PreRequisitesMsg}" 103
-			}
-			fi
-		}
-		fi
+		# Logger.LogInformation "Checking for free space in '/var/log'."
+		# local availSpaceInGB="$(df --block-size 1073741824 --output=avail /var/log | tail -n 1 | tr -d '[:space:]')"
+		# [ "${availSpaceInGB}" -lt "2" ] && Logger.Exit Failure "Found less than 2 GiB space on '/var/log'.\n${Constant_PreRequisitesMsg}" 103
+		# Logger.LogPass "Found at least 2 GiB space on '/var/log'."
 	}
 }
 
@@ -1237,7 +1216,7 @@ Plugin()
 		Plugin_Instance_Version_SPS="$(expr "$(echo "${Plugin_Instance_Version}" | cut -d '.' -f 3)" / 10)"
 		Logger.LogInformation "Found INSTANCE_VERSION_SPS = '${Plugin_Instance_Version_SPS}'."
 		[ "${Plugin_Instance_Version_Major}" == "1" ] && [ "${Plugin_Instance_Version_SPS}" -lt 9 ] && Logger.Exit Failure "Unsupported INSTANCE_VERSION_MAJOR = '1' and INSTANCE_VERSION_SPS < '9'.\n${Constant_PreRequisitesMsg}" 125
-		[ "${Plugin_Instance_Version_Major}" == "2" ] && [ "${Plugin_Instance_Version_SPS}" -gt 7 ] && Logger.Exit Failure "Unsupported INSTANCE_VERSION_MAJOR = '2' and INSTANCE_VERSION_SPS > '7'.\n${Constant_PreRequisitesMsg}" 125
+		[ "${Plugin_Instance_Version_Major}" == "2" ] && [ "${Plugin_Instance_Version_SPS}" -gt 6 ] && Logger.Exit Failure "Unsupported INSTANCE_VERSION_MAJOR = '2' and INSTANCE_VERSION_SPS > '6'.\n${Constant_PreRequisitesMsg}" 125
 		Logger.LogPass "Supported INSTANCE_VERSION."
 
 		Logger.LogInformation "Determining DRIVER_PATH."

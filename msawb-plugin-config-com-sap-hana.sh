@@ -24,7 +24,7 @@ Constant()
 		Constant_Plugin_Host_Service_File="/usr/lib/systemd/system/msawb-pluginhost-${Constant_Plugin_Name}-{1}.service"
 		Constant_Plugin_Host_Service_File_Old="/usr/lib/systemd/system/msawb-pluginhost-saphana-{1}.service"
 
-		Constant_Script_Version="2.1.0.3"
+		Constant_Script_Version="2.1.0.5"
 		Constant_Script_Name="$(basename "${0}")"
 		Constant_Script_Path="$(realpath "${0}")"
 		Constant_Script_Directory="$(dirname "${Constant_Script_Path}")"
@@ -306,7 +306,7 @@ Package()
 			"SLES")
 			{
 				case "${Package_OS_Version}" in
-					"15" | "15.1" | "15.2" | "15.3" | "15.4" )
+					"15" | "15.1" | "15.2" | "15.3" | "15.4" | "15.5")
 					{
 						Package_Python_Executable=${Package_Python3_Executable}
 						Package.Require Python3
@@ -615,6 +615,8 @@ Check()
 			SLES_SAP-15.3
 			SLES-15.4
 			SLES_SAP-15.4
+			SLES-15.5
+			SLES_SAP-15.5
 			RHEL-7.4
 			RHEL-7.5
 			RHEL-7.6
@@ -624,6 +626,7 @@ Check()
 			RHEL-8.2
 			RHEL-8.4
 			RHEL-8.6
+			RHEL-8.8
 			RHEL-9.0
 		Check_OS_Name_Version_Supported_EOF
 		[ "${?}" -ne "0" ] && Logger.Exit Failure "Found unsupported OS_NAME_VERSION = '${Check_OS_Name_Version}'.\n${Constant_PreRequisitesMsg}" 100

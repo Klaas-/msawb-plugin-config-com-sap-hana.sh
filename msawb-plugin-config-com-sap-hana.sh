@@ -24,7 +24,7 @@ Constant()
 		Constant_Plugin_Host_Service_File="/usr/lib/systemd/system/msawb-pluginhost-${Constant_Plugin_Name}-{1}.service"
 		Constant_Plugin_Host_Service_File_Old="/usr/lib/systemd/system/msawb-pluginhost-saphana-{1}.service"
 
-		Constant_Script_Version="2.1.0.5"
+		Constant_Script_Version="2.1.0.6"
 		Constant_Script_Name="$(basename "${0}")"
 		Constant_Script_Path="$(realpath "${0}")"
 		Constant_Script_Directory="$(dirname "${Constant_Script_Path}")"
@@ -321,7 +321,7 @@ Package()
 			"RHEL")
 			{
 				case "${Package_OS_Version}" in
-					"9.0" )
+					"9.0" | "9.2")
 					{
 						Package_Python_Executable=${Package_Python3_Executable}
 						Package.Require Python3
@@ -371,7 +371,7 @@ Package()
 			"RHEL")
 			{
 				case "${Package_OS_Version}" in
-					"9.0" )
+					"9.0" | "9.2")
 					{
 						Package.Require OpenSSL "true"
 					};;
@@ -628,6 +628,7 @@ Check()
 			RHEL-8.6
 			RHEL-8.8
 			RHEL-9.0
+			RHEL-9.2
 		Check_OS_Name_Version_Supported_EOF
 		[ "${?}" -ne "0" ] && Logger.Exit Failure "Found unsupported OS_NAME_VERSION = '${Check_OS_Name_Version}'.\n${Constant_PreRequisitesMsg}" 100
 		Logger.LogPass "Found supported OS_NAME_VERSION = '${Check_OS_Name_Version}'."

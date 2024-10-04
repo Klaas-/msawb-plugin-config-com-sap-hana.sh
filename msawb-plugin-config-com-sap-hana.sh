@@ -24,7 +24,7 @@ Constant()
 		Constant_Plugin_Host_Service_File="/usr/lib/systemd/system/msawb-pluginhost-${Constant_Plugin_Name}-{1}.service"
 		Constant_Plugin_Host_Service_File_Old="/usr/lib/systemd/system/msawb-pluginhost-saphana-{1}.service"
 
-		Constant_Script_Version="2.1.0.6"
+		Constant_Script_Version="2.1.0.7"
 		Constant_Script_Name="$(basename "${0}")"
 		Constant_Script_Path="$(realpath "${0}")"
 		Constant_Script_Directory="$(dirname "${Constant_Script_Path}")"
@@ -306,7 +306,7 @@ Package()
 			"SLES")
 			{
 				case "${Package_OS_Version}" in
-					"15" | "15.1" | "15.2" | "15.3" | "15.4" | "15.5")
+					"15" | "15.1" | "15.2" | "15.3" | "15.4" | "15.5" | "15.6")
 					{
 						Package_Python_Executable=${Package_Python3_Executable}
 						Package.Require Python3
@@ -321,7 +321,7 @@ Package()
 			"RHEL")
 			{
 				case "${Package_OS_Version}" in
-					"9.0" | "9.2")
+					"9.0" | "9.2" | "9.4")
 					{
 						Package_Python_Executable=${Package_Python3_Executable}
 						Package.Require Python3
@@ -617,6 +617,8 @@ Check()
 			SLES_SAP-15.4
 			SLES-15.5
 			SLES_SAP-15.5
+			SLES-15.6
+			SLES_SAP-15.6
 			RHEL-7.4
 			RHEL-7.5
 			RHEL-7.6
@@ -627,8 +629,10 @@ Check()
 			RHEL-8.4
 			RHEL-8.6
 			RHEL-8.8
+			RHEL-8.10
 			RHEL-9.0
 			RHEL-9.2
+			RHEL-9.4
 		Check_OS_Name_Version_Supported_EOF
 		[ "${?}" -ne "0" ] && Logger.Exit Failure "Found unsupported OS_NAME_VERSION = '${Check_OS_Name_Version}'.\n${Constant_PreRequisitesMsg}" 100
 		Logger.LogPass "Found supported OS_NAME_VERSION = '${Check_OS_Name_Version}'."
@@ -745,64 +749,78 @@ Check()
 	Check.ServiceConnectivity()
 	{
 		declare -A Check_Service_Urls=(
-			[australiacentral]="https://aclpod01fab1wxsajyqyj.blob.core.windows.net,https://aclpod01fab1wxsajyqyj.queue.core.windows.net,https://pod01-prot1.acl.backup.windowsazure.com"
-			[australiacentral2]="https://acl2pod01fab1wxsaa1ghw.blob.core.windows.net,https://acl2pod01fab1wxsaa1ghw.queue.core.windows.net,https://pod01-prot1.acl2.backup.windowsazure.com"
-			[australiaeast]="https://aepod01fab1wxsai4sv4.blob.core.windows.net,https://aepod01fab1wxsai4sv4.queue.core.windows.net,https://pod01-prot1.ae.backup.windowsazure.com"
-			[australiasoutheast]="https://asepod01fab1wxsatu7ut.blob.core.windows.net,https://asepod01fab1wxsatu7ut.queue.core.windows.net,https://pod01-prot1.ase.backup.windowsazure.com"
-			[brazilsouth]="https://brspod01fab1wxsaj8cwf.blob.core.windows.net,https://brspod01fab1wxsaj8cwf.queue.core.windows.net,https://pod01-prot1.brs.backup.windowsazure.com"
-			[canadacentral]="https://cncpod01fab1wxsakmklr.blob.core.windows.net,https://cncpod01fab1wxsakmklr.queue.core.windows.net,https://pod01-prot1.cnc.backup.windowsazure.com"
-			[canadaeast]="https://cnepod01fab1wxsald6z1.blob.core.windows.net,https://cnepod01fab1wxsald6z1.queue.core.windows.net,https://pod01-prot1.cne.backup.windowsazure.com"
-			[centralindia]="https://incpod01fab1wxsafouqx.blob.core.windows.net,https://incpod01fab1wxsafouqx.queue.core.windows.net,https://pod01-prot1.inc.backup.windowsazure.com"
-			[centralus]="https://cuspod01fab1wxsar4zyr.blob.core.windows.net,https://cuspod01fab1wxsar4zyr.queue.core.windows.net,https://pod01-prot1.cus.backup.windowsazure.com"
-			[chinaeast]="https://shapod01fab1wxsad4ak9.blob.core.chinacloudapi.cn,https://shapod01fab1wxsad4ak9.queue.core.chinacloudapi.cn,https://pod01-prot1.sha.backup.windowsazure.cn"
-			[chinaeast2]="https://sha2pod01fab1wxsai042v.blob.core.chinacloudapi.cn,https://sha2pod01fab1wxsai042v.queue.core.chinacloudapi.cn,https://pod01-prot1.sha2.backup.windowsazure.cn"
-			[chinaeast3]="https://sha3pod01fab1wxsaq50bi.blob.core.chinacloudapi.cn,https://sha3pod01fab1wxsaq50bi.queue.core.chinacloudapi.cn,https://pod01-prot1.sha3.backup.windowsazure.cn"
-			[chinanorth]="https://bjbpod01fab1wxsa93erj.blob.core.chinacloudapi.cn,https://bjbpod01fab1wxsa93erj.queue.core.chinacloudapi.cn,https://pod01-prot1.bjb.backup.windowsazure.cn"
-			[chinanorth2]="https://bjb2pod01fab1wxsa5pys4.blob.core.chinacloudapi.cn,https://bjb2pod01fab1wxsa5pys4.queue.core.chinacloudapi.cn,https://pod01-prot1.bjb2.backup.windowsazure.cn"
-			[chinanorth3]="https://bjb3pod01fab1wxsaohap6.blob.core.chinacloudapi.cn,https://bjb3pod01fab1wxsaohap6.queue.core.chinacloudapi.cn,https://pod01-prot1.bjb3.backup.windowsazure.cn"
-			[eastasia]="https://eapod01fab1wxsaa7o8l.blob.core.windows.net,https://eapod01fab1wxsaa7o8l.queue.core.windows.net,https://pod01-prot1.ea.backup.windowsazure.com"
-			[eastus]="https://euspod01fab1wxsanhice.blob.core.windows.net,https://euspod01fab1wxsanhice.queue.core.windows.net,https://pod01-prot1.eus.backup.windowsazure.com"
-			[eastus2]="https://eus2pod01fab1wxsadqy6r.blob.core.windows.net,https://eus2pod01fab1wxsadqy6r.queue.core.windows.net,https://pod01-prot1.eus2.backup.windowsazure.com"
-			[francecentral]="https://frcpod01fab1wxsat4ryw.blob.core.windows.net,https://frcpod01fab1wxsat4ryw.queue.core.windows.net,https://pod01-prot1.frc.backup.windowsazure.com"
-			[francesouth]="https://frspod01fab1wxsaxyjax.blob.core.windows.net,https://frspod01fab1wxsaxyjax.queue.core.windows.net,https://pod01-prot1.frs.backup.windowsazure.com"
-			[germanycentral]="https://gecpod01fab1wxsab7hz8.blob.core.cloudapi.de,https://gecpod01fab1wxsab7hz8.queue.core.cloudapi.de,https://pod01-prot1.gec.backup.windowsazure.de"
-			[germanynorth]="https://gnpod01fab1wxsa9iii0.blob.core.windows.net,https://gnpod01fab1wxsa9iii0.queue.core.windows.net,https://pod01-prot1.gn.backup.windowsazure.com"
-			[germanynortheast]="https://gnepod01fab1wxsatjp3a.blob.core.cloudapi.de,https://gnepod01fab1wxsatjp3a.queue.core.cloudapi.de,https://pod01-prot1.gec.backup.windowsazure.de"
-			[germanywestcentral]="https://gwcpod01fab1wxsagzbp5.blob.core.windows.net,https://gwcpod01fab1wxsagzbp5.queue.core.windows.net,https://pod01-prot1.gwc.backup.windowsazure.com"
-			[japaneast]="https://jpepod01fab1wxsas2j8q.blob.core.windows.net,https://jpepod01fab1wxsas2j8q.queue.core.windows.net,https://pod01-prot1.jpe.backup.windowsazure.com"
-			[japanwest]="https://jpwpod01fab1wxsaj9ksn.blob.core.windows.net,https://jpwpod01fab1wxsaj9ksn.queue.core.windows.net,https://pod01-prot1.jpw.backup.windowsazure.com"
-			[koreacentral]="https://krcpod01fab1wxsa2m8aq.blob.core.windows.net,https://krcpod01fab1wxsa2m8aq.queue.core.windows.net,https://pod01-prot1.krc.backup.windowsazure.com"
-			[koreasouth]="https://krspod01fab1wxsak15a6.blob.core.windows.net,https://krspod01fab1wxsak15a6.queue.core.windows.net,https://pod01-prot1.krs.backup.windowsazure.com"
-			[northcentralus]="https://ncuspod01fab1wxsac19bc.blob.core.windows.net,https://ncuspod01fab1wxsac19bc.queue.core.windows.net,https://pod01-prot1.ncus.backup.windowsazure.com"
-			[northeurope]="https://nepod01fab1wxsag8ksw.blob.core.windows.net,https://nepod01fab1wxsag8ksw.queue.core.windows.net,https://pod01-prot1.ne.backup.windowsazure.com"
-			[qatarcentral]="https://qacpod01fab1wxsafxfxi.blob.core.windows.net,https://qacpod01fab1wxsafxfxi.queue.core.windows.net,https://pod01-prot1.qac.backup.windowsazure.com"
-			[southafricanorth]="https://sanpod01fab1wxsaqslgm.blob.core.windows.net,https://sanpod01fab1wxsaqslgm.queue.core.windows.net,https://pod01-prot1.san.backup.windowsazure.com"
-			[southafricawest]="https://sawpod01fab1wxsaor9bk.blob.core.windows.net,https://sawpod01fab1wxsaor9bk.queue.core.windows.net,https://pod01-prot1.saw.backup.windowsazure.com"
-			[southcentralus]="https://scuspod01fab1wxsaojuir.blob.core.windows.net,https://scuspod01fab1wxsaojuir.queue.core.windows.net,https://pod01-prot1.scus.backup.windowsazure.com"
-			[southeastasia]="https://seapod01fab1wxsapk732.blob.core.windows.net,https://seapod01fab1wxsapk732.queue.core.windows.net,https://pod01-prot1.sea.backup.windowsazure.com"
-			[southindia]="https://inspod01fab1wxsajidjx.blob.core.windows.net,https://inspod01fab1wxsajidjx.queue.core.windows.net,https://pod01-prot1.ins.backup.windowsazure.com"
-			[switzerlandnorth]="https://sznpod01fab1wxsaoh61w.blob.core.windows.net,https://sznpod01fab1wxsaoh61w.queue.core.windows.net,https://pod01-prot1.szn.backup.windowsazure.com"
-			[switzerlandwest]="https://szwpod01fab1wxsazdbvl.blob.core.windows.net,https://szwpod01fab1wxsazdbvl.queue.core.windows.net,https://pod01-prot1.szw.backup.windowsazure.com"
-			[uaecentral]="https://uacpod01fab1wxsa97cxf.blob.core.windows.net,https://uacpod01fab1wxsa97cxf.queue.core.windows.net,https://pod01-prot1.uac.backup.windowsazure.com"
-			[uaenorth]="https://uanpod01fab1wxsaozt5l.blob.core.windows.net,https://uanpod01fab1wxsaozt5l.queue.core.windows.net,https://pod01-prot1.uan.backup.windowsazure.com"
-			[uknorth]="https://uknpod01fab1wxsaf6faw.blob.core.windows.net,https://uknpod01fab1wxsaf6faw.queue.core.windows.net,https://pod01-prot1.ukn.backup.windowsazure.com"
-			[uksouth]="https://ukspod01fab1wxsarr1fn.blob.core.windows.net,https://ukspod01fab1wxsarr1fn.queue.core.windows.net,https://pod01-prot1.uks.backup.windowsazure.com"
-			[uksouth2]="https://uks2pod01fab1wxsaqblqp.blob.core.windows.net,https://uks2pod01fab1wxsaqblqp.queue.core.windows.net,https://pod01-prot1.uks2.backup.windowsazure.com"
-			[ukwest]="https://ukwpod01fab1wxsajx51y.blob.core.windows.net,https://ukwpod01fab1wxsajx51y.queue.core.windows.net,https://pod01-prot1.ukw.backup.windowsazure.com"
-			[usdodcentral]="https://udcpod01fab1wxsahrru3.blob.core.usgovcloudapi.net,https://udcpod01fab1wxsahrru3.queue.core.usgovcloudapi.net,https://pod01-prot1.udc.backup.windowsazure.us"
-			[usdodeast]="https://udepod01fab1wxsaxxsyj.blob.core.usgovcloudapi.net,https://udepod01fab1wxsaxxsyj.queue.core.usgovcloudapi.net,https://pod01-prot1.ude.backup.windowsazure.us"
-			[usgovarizona]="https://ugapod01fab1wxsasbss5.blob.core.usgovcloudapi.net,https://ugapod01fab1wxsasbss5.queue.core.usgovcloudapi.net,https://pod01-prot1.uga.backup.windowsazure.us"
-			[usgoviowa]="https://ugipod01fab1wxsal8a5l.blob.core.usgovcloudapi.net,https://ugipod01fab1wxsal8a5l.queue.core.usgovcloudapi.net,https://pod01-prot1.ugi.backup.windowsazure.us"
-			[usgovtexas]="https://ugtpod01fab1wxsayj9k8.blob.core.usgovcloudapi.net,https://ugtpod01fab1wxsayj9k8.queue.core.usgovcloudapi.net,https://pod01-prot1.ugt.backup.windowsazure.us"
-			[usgovvirginia]="https://ugvpod01fab1wxsa4lrr1.blob.core.usgovcloudapi.net,https://ugvpod01fab1wxsa4lrr1.queue.core.usgovcloudapi.net,https://pod01-prot1.ugv.backup.windowsazure.us"
-			[westcentralus]="https://wcuspod01fab1wxsaqdfdu.blob.core.windows.net,https://wcuspod01fab1wxsaqdfdu.queue.core.windows.net,https://pod01-prot1.wcus.backup.windowsazure.com"
-			[westeurope]="https://wepod01fab1wxsa4wq1d.blob.core.windows.net,https://wepod01fab1wxsa4wq1d.queue.core.windows.net,https://pod01-prot1.we.backup.windowsazure.com"
-			[westindia]="https://inwpod01fab1wxsakmfn8.blob.core.windows.net,https://inwpod01fab1wxsakmfn8.queue.core.windows.net,https://pod01-prot1.inw.backup.windowsazure.com"
-			[westus]="https://wuspod01fab1wxsa95jfo.blob.core.windows.net,https://wuspod01fab1wxsa95jfo.queue.core.windows.net,https://pod01-prot1.wus.backup.windowsazure.com"
-			[westus2]="https://wus2pod01fab1wxsata8kz.blob.core.windows.net,https://wus2pod01fab1wxsata8kz.queue.core.windows.net,https://pod01-prot1.wus2.backup.windowsazure.com"
-			[westus3]="https://wus3pod01fab1wxsain5is.blob.core.windows.net,https://wus3pod01fab1wxsain5is.queue.core.windows.net,https://pod01-prot1.wus3.backup.windowsazure.com"
-			[norwayeast]="https://nwepod01fab1wxsa56atw.blob.core.windows.net,https://nwepod01fab1wxsa56atw.queue.core.windows.net,https://pod01-prot1.nwe.backup.windowsazure.com"
-			[norwaywest]="https://nwwpod01fab1wxsacnbvq.blob.core.windows.net,https://nwwpod01fab1wxsacnbvq.queue.core.windows.net,https://pod01-prot1.nww.backup.windowsazure.com"
+                       [australiacentral]="https://aclpod01fab1wxsajyqyj.blob.core.windows.net,https://aclpod01fab1wxsajyqyj.queue.core.windows.net,https://pod01-prot1.acl.backup.windowsazure.com"
+                       [australiacentral2]="https://acl2pod01fab1wxsaa1ghw.blob.core.windows.net,https://acl2pod01fab1wxsaa1ghw.queue.core.windows.net,https://pod01-prot1.acl2.backup.windowsazure.com"
+                       [australiaeast]="https://aepod01fab1wxsai4sv4.blob.core.windows.net,https://aepod01fab1wxsai4sv4.queue.core.windows.net,https://pod01-prot1.ae.backup.windowsazure.com"
+                       [australiasoutheast]="https://asepod01fab1wxsatu7ut.blob.core.windows.net,https://asepod01fab1wxsatu7ut.queue.core.windows.net,https://pod01-prot1.ase.backup.windowsazure.com"
+                       [brazilsouth]="https://brspod01fab1wxsaj8cwf.blob.core.windows.net,https://brspod01fab1wxsaj8cwf.queue.core.windows.net,https://pod01-prot1.brs.backup.windowsazure.com"
+                       [brazilsoutheast]="https://bsepod01fab1wxsamd261.blob.core.windows.net,https://bsepod01fab1wxsamd261.queue.core.windows.net,https://pod01-prot1.bse.backup.windowsazure.com"
+                       [canadacentral]="https://cncpod01fab1wxsakmklr.blob.core.windows.net,https://cncpod01fab1wxsakmklr.queue.core.windows.net,https://pod01-prot1.cnc.backup.windowsazure.com"
+                       [canadaeast]="https://cnepod01fab1wxsald6z1.blob.core.windows.net,https://cnepod01fab1wxsald6z1.queue.core.windows.net,https://pod01-prot1.cne.backup.windowsazure.com"
+                       [centralindia]="https://incpod01fab1wxsafouqx.blob.core.windows.net,https://incpod01fab1wxsafouqx.queue.core.windows.net,https://pod01-prot1.inc.backup.windowsazure.com"
+                       [centralus]="https://cuspod01fab1wxsar4zyr.blob.core.windows.net,https://cuspod01fab1wxsar4zyr.queue.core.windows.net,https://pod01-prot1.cus.backup.windowsazure.com"
+                       [chinaeast]="https://shapod01fab1wxsad4ak9.blob.core.chinacloudapi.cn,https://shapod01fab1wxsad4ak9.queue.core.chinacloudapi.cn,https://pod01-prot1.sha.backup.windowsazure.cn"
+                       [chinaeast2]="https://sha2pod01fab1wxsai042v.blob.core.chinacloudapi.cn,https://sha2pod01fab1wxsai042v.queue.core.chinacloudapi.cn,https://pod01-prot1.sha2.backup.windowsazure.cn"
+                       [chinaeast3]="https://sha3pod01fab1wxsaq50bi.blob.core.chinacloudapi.cn,https://sha3pod01fab1wxsaq50bi.queue.core.chinacloudapi.cn,https://pod01-prot1.sha3.backup.windowsazure.cn"
+                       [chinanorth]="https://bjbpod01fab1wxsa93erj.blob.core.chinacloudapi.cn,https://bjbpod01fab1wxsa93erj.queue.core.chinacloudapi.cn,https://pod01-prot1.bjb.backup.windowsazure.cn"
+                       [chinanorth2]="https://bjb2pod01fab1wxsa5pys4.blob.core.chinacloudapi.cn,https://bjb2pod01fab1wxsa5pys4.queue.core.chinacloudapi.cn,https://pod01-prot1.bjb2.backup.windowsazure.cn"
+                       [chinanorth3]="https://bjb3pod01fab1wxsaohap6.blob.core.chinacloudapi.cn,https://bjb3pod01fab1wxsaohap6.queue.core.chinacloudapi.cn,https://pod01-prot1.bjb3.backup.windowsazure.cn"
+                       [eastasia]="https://eapod01fab1wxsaa7o8l.blob.core.windows.net,https://eapod01fab1wxsaa7o8l.queue.core.windows.net,https://pod01-prot1.ea.backup.windowsazure.com"
+                       [eastus]="https://euspod01fab1wxsanhice.blob.core.windows.net,https://euspod01fab1wxsanhice.queue.core.windows.net,https://pod01-prot1.eus.backup.windowsazure.com"
+                       [eastus2]="https://eus2pod01fab1wxsadqy6r.blob.core.windows.net,https://eus2pod01fab1wxsadqy6r.queue.core.windows.net,https://pod01-prot1.eus2.backup.windowsazure.com"
+                       [francecentral]="https://frcpod01fab1wxsat4ryw.blob.core.windows.net,https://frcpod01fab1wxsat4ryw.queue.core.windows.net,https://pod01-prot1.frc.backup.windowsazure.com"
+                       [francesouth]="https://frspod01fab1wxsaxyjax.blob.core.windows.net,https://frspod01fab1wxsaxyjax.queue.core.windows.net,https://pod01-prot1.frs.backup.windowsazure.com"
+                       [germanycentral]="https://gecpod01fab1wxsab7hz8.blob.core.cloudapi.de,https://gecpod01fab1wxsab7hz8.queue.core.cloudapi.de,https://pod01-prot1.gec.backup.windowsazure.de"
+                       [germanynorth]="https://gnpod01fab1wxsa9iii0.blob.core.windows.net,https://gnpod01fab1wxsa9iii0.queue.core.windows.net,https://pod01-prot1.gn.backup.windowsazure.com"
+                       [germanynortheast]="https://gnepod01fab1wxsatjp3a.blob.core.cloudapi.de,https://gnepod01fab1wxsatjp3a.queue.core.cloudapi.de,https://pod01-prot1.gec.backup.windowsazure.de"
+                       [germanywestcentral]="https://gwcpod01fab1wxsagzbp5.blob.core.windows.net,https://gwcpod01fab1wxsagzbp5.queue.core.windows.net,https://pod01-prot1.gwc.backup.windowsazure.com"
+                       [israelcentral]="https://ilcpod01fab1wxsa298yb.blob.core.windows.net,https://ilcpod01fab1wxsa298yb.queue.core.windows.net,https://pod01-prot1.ilc.backup.windowsazure.com"
+                       [italynorth]="https://itnpod01fab1wxsah2py5.blob.core.windows.net,https://itnpod01fab1wxsah2py5.queue.core.windows.net,https://pod01-prot1.itn.backup.windowsazure.com"
+                       [japaneast]="https://jpepod01fab1wxsas2j8q.blob.core.windows.net,https://jpepod01fab1wxsas2j8q.queue.core.windows.net,https://pod01-prot1.jpe.backup.windowsazure.com"
+                       [japanwest]="https://jpwpod01fab1wxsaj9ksn.blob.core.windows.net,https://jpwpod01fab1wxsaj9ksn.queue.core.windows.net,https://pod01-prot1.jpw.backup.windowsazure.com"
+                       [jioindiacentral]="https://jicpod01fab1wxsa1awd7.blob.core.windows.net,https://jicpod01fab1wxsa1awd7.queue.core.windows.net,https://pod01-prot1.jic.backup.windowsazure.com"
+                       [jioindiawest]="https://jiwpod01fab1wxsahtq81.blob.core.windows.net,https://jiwpod01fab1wxsahtq81.queue.core.windows.net,https://pod01-prot1.jiw.backup.windowsazure.com"
+                       [koreacentral]="https://krcpod01fab1wxsa2m8aq.blob.core.windows.net,https://krcpod01fab1wxsa2m8aq.queue.core.windows.net,https://pod01-prot1.krc.backup.windowsazure.com"
+                       [koreasouth]="https://krspod01fab1wxsak15a6.blob.core.windows.net,https://krspod01fab1wxsak15a6.queue.core.windows.net,https://pod01-prot1.krs.backup.windowsazure.com"
+                       [malaysiasouth]="https://myspod01fab1wxsainw71.blob.core.windows.net,https://myspod01fab1wxsainw71.queue.core.windows.net,https://pod01-prot1.mys.backup.windowsazure.com"
+                       [mexicocentral]="https://mxcpod01fab1wxsafffhl.blob.core.windows.net,https://mxcpod01fab1wxsafffhl.queue.core.windows.net,https://pod01-prot1.mxc.backup.windowsazure.com"
+                       [newzealandnorth]="https://nznpod01fab1wxsatdd0n.blob.core.windows.net,https://nznpod01fab1wxsatdd0n.queue.core.windows.net,https://pod01-prot1.nzn.backup.windowsazure.com"
+                       [northcentralus]="https://ncuspod01fab1wxsac19bc.blob.core.windows.net,https://ncuspod01fab1wxsac19bc.queue.core.windows.net,https://pod01-prot1.ncus.backup.windowsazure.com"
+                       [northeurope]="https://nepod01fab1wxsag8ksw.blob.core.windows.net,https://nepod01fab1wxsag8ksw.queue.core.windows.net,https://pod01-prot1.ne.backup.windowsazure.com"
+                       [norwayeast]="https://nwepod01fab1wxsa56atw.blob.core.windows.net,https://nwepod01fab1wxsa56atw.queue.core.windows.net,https://pod01-prot1.nwe.backup.windowsazure.com"
+                       [norwaywest]="https://nwwpod01fab1wxsacnbvq.blob.core.windows.net,https://nwwpod01fab1wxsacnbvq.queue.core.windows.net,https://pod01-prot1.nww.backup.windowsazure.com"
+                       [polandcentral]="https://plcpod01fab1wxsaj0gtc.blob.core.windows.net,https://plcpod01fab1wxsaj0gtc.queue.core.windows.net,https://pod01-prot1.plc.backup.windowsazure.com"
+                       [qatarcentral]="https://qacpod01fab1wxsafxfxi.blob.core.windows.net,https://qacpod01fab1wxsafxfxi.queue.core.windows.net,https://pod01-prot1.qac.backup.windowsazure.com"
+                       [southafricanorth]="https://sanpod01fab1wxsaqslgm.blob.core.windows.net,https://sanpod01fab1wxsaqslgm.queue.core.windows.net,https://pod01-prot1.san.backup.windowsazure.com"
+                       [southafricawest]="https://sawpod01fab1wxsaor9bk.blob.core.windows.net,https://sawpod01fab1wxsaor9bk.queue.core.windows.net,https://pod01-prot1.saw.backup.windowsazure.com"
+                       [southcentralus]="https://scuspod01fab1wxsaojuir.blob.core.windows.net,https://scuspod01fab1wxsaojuir.queue.core.windows.net,https://pod01-prot1.scus.backup.windowsazure.com"
+                       [southeastasia]="https://seapod01fab1wxsapk732.blob.core.windows.net,https://seapod01fab1wxsapk732.queue.core.windows.net,https://pod01-prot1.sea.backup.windowsazure.com"
+                       [southindia]="https://inspod01fab1wxsajidjx.blob.core.windows.net,https://inspod01fab1wxsajidjx.queue.core.windows.net,https://pod01-prot1.ins.backup.windowsazure.com"
+                       [spaincentral]="https://spcpod01fab1wxsa1gscm.blob.core.windows.net,https://spcpod01fab1wxsa1gscm.queue.core.windows.net,https://pod01-prot1.spc.backup.windowsazure.com"
+                       [swedencentral]="https://sdcpod01fab1wxsa9os3g.blob.core.windows.net,https://sdcpod01fab1wxsa9os3g.queue.core.windows.net,https://pod01-prot1.sdc.backup.windowsazure.com"
+                       [swedensouth]="https://sdspod01fab1wxsa99znk.blob.core.windows.net,https://sdspod01fab1wxsa99znk.queue.core.windows.net,https://pod01-prot1.sds.backup.windowsazure.com"
+                       [switzerlandnorth]="https://sznpod01fab1wxsaoh61w.blob.core.windows.net,https://sznpod01fab1wxsaoh61w.queue.core.windows.net,https://pod01-prot1.szn.backup.windowsazure.com"
+                       [switzerlandwest]="https://szwpod01fab1wxsazdbvl.blob.core.windows.net,https://szwpod01fab1wxsazdbvl.queue.core.windows.net,https://pod01-prot1.szw.backup.windowsazure.com"
+                       [taiwannorth]="https://twnpod01fab1wxsa47mpw.blob.core.windows.net,https://twnpod01fab1wxsa47mpw.queue.core.windows.net,https://pod01-prot1.twn.backup.windowsazure.com"
+                       [taiwannorthwest]="https://tnwpod01fab1wxsaexxoa.blob.core.windows.net,https://tnwpod01fab1wxsaexxoa.queue.core.windows.net,https://pod01-prot1.tnw.backup.windowsazure.com"
+                       [uaecentral]="https://uacpod01fab1wxsa97cxf.blob.core.windows.net,https://uacpod01fab1wxsa97cxf.queue.core.windows.net,https://pod01-prot1.uac.backup.windowsazure.com"
+                       [uaenorth]="https://uanpod01fab1wxsaozt5l.blob.core.windows.net,https://uanpod01fab1wxsaozt5l.queue.core.windows.net,https://pod01-prot1.uan.backup.windowsazure.com"
+                       [uknorth]="https://uknpod01fab1wxsaf6faw.blob.core.windows.net,https://uknpod01fab1wxsaf6faw.queue.core.windows.net,https://pod01-prot1.ukn.backup.windowsazure.com"
+                       [uksouth]="https://ukspod01fab1wxsarr1fn.blob.core.windows.net,https://ukspod01fab1wxsarr1fn.queue.core.windows.net,https://pod01-prot1.uks.backup.windowsazure.com"
+                       [uksouth2]="https://uks2pod01fab1wxsaqblqp.blob.core.windows.net,https://uks2pod01fab1wxsaqblqp.queue.core.windows.net,https://pod01-prot1.uks2.backup.windowsazure.com"
+                       [ukwest]="https://ukwpod01fab1wxsajx51y.blob.core.windows.net,https://ukwpod01fab1wxsajx51y.queue.core.windows.net,https://pod01-prot1.ukw.backup.windowsazure.com"
+                       [usdodcentral]="https://udcpod01fab1wxsahrru3.blob.core.usgovcloudapi.net,https://udcpod01fab1wxsahrru3.queue.core.usgovcloudapi.net,https://pod01-prot1.udc.backup.windowsazure.us"
+                       [usdodeast]="https://udepod01fab1wxsaxxsyj.blob.core.usgovcloudapi.net,https://udepod01fab1wxsaxxsyj.queue.core.usgovcloudapi.net,https://pod01-prot1.ude.backup.windowsazure.us"
+                       [usgovarizona]="https://ugapod01fab1wxsasbss5.blob.core.usgovcloudapi.net,https://ugapod01fab1wxsasbss5.queue.core.usgovcloudapi.net,https://pod01-prot1.uga.backup.windowsazure.us"
+                       [usgoviowa]="https://ugipod01fab1wxsal8a5l.blob.core.usgovcloudapi.net,https://ugipod01fab1wxsal8a5l.queue.core.usgovcloudapi.net,https://pod01-prot1.ugi.backup.windowsazure.us"
+                       [usgovtexas]="https://ugtpod01fab1wxsayj9k8.blob.core.usgovcloudapi.net,https://ugtpod01fab1wxsayj9k8.queue.core.usgovcloudapi.net,https://pod01-prot1.ugt.backup.windowsazure.us"
+                       [usgovvirginia]="https://ugvpod01fab1wxsa4lrr1.blob.core.usgovcloudapi.net,https://ugvpod01fab1wxsa4lrr1.queue.core.usgovcloudapi.net,https://pod01-prot1.ugv.backup.windowsazure.us"
+                       [westcentralus]="https://wcuspod01fab1wxsaqdfdu.blob.core.windows.net,https://wcuspod01fab1wxsaqdfdu.queue.core.windows.net,https://pod01-prot1.wcus.backup.windowsazure.com"
+                       [westeurope]="https://wepod01fab1wxsa4wq1d.blob.core.windows.net,https://wepod01fab1wxsa4wq1d.queue.core.windows.net,https://pod01-prot1.we.backup.windowsazure.com"
+                       [westindia]="https://inwpod01fab1wxsakmfn8.blob.core.windows.net,https://inwpod01fab1wxsakmfn8.queue.core.windows.net,https://pod01-prot1.inw.backup.windowsazure.com"
+                       [westus]="https://wuspod01fab1wxsa95jfo.blob.core.windows.net,https://wuspod01fab1wxsa95jfo.queue.core.windows.net,https://pod01-prot1.wus.backup.windowsazure.com"
+                       [westus2]="https://wus2pod01fab1wxsata8kz.blob.core.windows.net,https://wus2pod01fab1wxsata8kz.queue.core.windows.net,https://pod01-prot1.wus2.backup.windowsazure.com"
+                       [westus3]="https://wus3pod01fab1wxsain5is.blob.core.windows.net,https://wus3pod01fab1wxsain5is.queue.core.windows.net,https://pod01-prot1.wus3.backup.windowsazure.com"
 		)
 
 		if [ "x${Check_IMDS_VM_Region}" == "x" ]
@@ -1092,6 +1110,42 @@ Plugin()
 			then
 			{
 				Logger.Exit Failure "Cannot add specified SID '${Plugin_Sid}': Please remove the current SID with the '--remove' command." 16
+			}
+			fi
+		}
+		fi
+
+		if [ "x${Plugin_Config_HSR_Unique_Value}" != "x" ]
+		then
+		{
+			if [ "x${Plugin_HSR_Unique_Value}" == "x" ]
+			then
+			{
+				Logger.LogInformation "To add a different HSR Unique Value: Please remove the current HSR Unique Value with the '--remove' command."
+				Plugin_HSR_Unique_Value="${Plugin_Config_HSR_Unique_Value}"
+
+				if [ "x${Plugin_Config_Backup_Key_Name}" != "x" ]
+				then
+				{
+					if [ "x${Plugin_Backup_Key_Name}" == "x" ]
+					then
+					{
+						Logger.LogInformation "To add a different Backup Key: Please remove the current Backup Key with the '--remove' command."
+						Plugin_Backup_Key_Name="${Plugin_Config_Backup_Key_Name}"
+					}
+					elif [ "x${Plugin_Backup_Key_Name}" != "x${Plugin_Config_Backup_Key_Name}" ]
+					then
+					{
+						Logger.Exit Failure "Cannot add specified Backup Key '${Plugin_Backup_Key_Name}': Please remove the current Backup Key with the '--remove' command." 16
+					}
+					fi
+				}
+				fi
+			}
+			elif [ "x${Plugin_HSR_Unique_Value}" != "x${Plugin_Config_HSR_Unique_Value}" ]
+			then
+			{
+				Logger.Exit Failure "Cannot add specified HSR Guid '${Plugin_HSR_Unique_Value}': Please remove the current HSR Unique Value with the '--remove' command." 16
 			}
 			fi
 		}
@@ -1809,6 +1863,12 @@ Plugin()
 		do echo "${Check_Hostnames}" | while read -r checkHostname
 		do [ "x${checkHostname}:${Plugin_Port_Number}" == "x${hdbHostEnv}" ] && echo "${hdbHostKey}" && break
 		done; done; done | sort | uniq)"
+		if [[ "x${Plugin_Read_Instance_Keys}" != "x" &&  "x${Plugin_HSR_Unique_Value}" != "x" ]]
+		then
+		{
+			Logger.LogWarning "Azure Backup recommends to use the custom backup key (-bk parameter) using the load balancer host/IP instead of local host to use Virtual IP (VIP)."
+		}
+		fi
 		if [[ "x${allowVirtualHostNames}" != "x" && "x${Plugin_Read_Instance_Keys}" == "x" ]]
 		then
 		{
@@ -2162,6 +2222,9 @@ Plugin()
 		result="$("${Package_Python_Executable}" -c $'import json\n'"with open('${Constant_Plugin_Config_File_Old}', 'r') as config: print(json.load(config)[0]['LogicalContainerOSUser'])" 2>&1)"
 		[ "${?}" -eq "0" ] && Plugin_Config_User="${result}" && Logger.LogInformation "Found USER = '${Plugin_Config_User}'."
 
+		result="$("${Package_Python_Executable}" -c $'import json\n'"with open('${Constant_Plugin_Config_File_Old}', 'r') as config: print(json.load(config)[0]['LogicalContainerHSRGuid'])" 2>&1)"
+		[ "${?}" -eq "0" ] && Plugin_Config_HSR_Unique_Value="${result}" && Logger.LogInformation "Found USER = '${Plugin_Config_HSR_Unique_Value}'."
+
 		result="$("${Package_Python_Executable}" -c $'import json\n'"with open('${Constant_Plugin_Config_File_Old}', 'r') as config: print(json.load(config)[0]['PropertyBag']['odbcDriverPath'])" 2>&1)"
 		[ "${?}" -eq "0" ] && Plugin_Config_Driver_Path="${result}" && Logger.LogInformation "Found DRIVER_PATH = '${Plugin_Config_Driver_Path}'."
 
@@ -2381,8 +2444,10 @@ with open('${Constant_Plugin_Config_File_Old}', 'w') as config:
 			    Specify the Unique value of HANA SYSTEM REPLICATION Unique value that should be used
 			    on all the nodes in same HANA SYSTEM REPLICATION. Suppose M1 is primary Hana system 
 			    and M2 is secondary Hana system in particular HSR configuration. Then user should 
-			    provide same unique value to both the nodes M1 and M2. Also node this parameter 
+			    provide same unique value to both the nodes M1 and M2. Also note this parameter
 			    should always be used with the -bk parameter.
+				Azure Backup recommends to use the custom backup key (-bk parameter)using the
+				load balancer host/IP instead of local host to use Virtual IP (VIP).
 
 			  -p PORT_NUMBER, --port-number PORT_NUMBER
 			    PORT_NUMBER of the Hana system. For MDC : "3"+instance number+"13"

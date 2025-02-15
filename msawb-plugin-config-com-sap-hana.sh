@@ -24,7 +24,7 @@ Constant()
 		Constant_Plugin_Host_Service_File="/usr/lib/systemd/system/msawb-pluginhost-${Constant_Plugin_Name}-{1}.service"
 		Constant_Plugin_Host_Service_File_Old="/usr/lib/systemd/system/msawb-pluginhost-saphana-{1}.service"
 
-		Constant_Script_Version="2.1.0.7"
+		Constant_Script_Version="2.1.0.8"
 		Constant_Script_Name="$(basename "${0}")"
 		Constant_Script_Path="$(realpath "${0}")"
 		Constant_Script_Directory="$(dirname "${Constant_Script_Path}")"
@@ -371,7 +371,7 @@ Package()
 			"RHEL")
 			{
 				case "${Package_OS_Version}" in
-					"9.0" | "9.2")
+					"9.0" | "9.2" | "9.4")
 					{
 						Package.Require OpenSSL "true"
 					};;
@@ -1295,7 +1295,7 @@ Plugin()
 		Plugin_Instance_Version_SPS="$(expr "$(echo "${Plugin_Instance_Version}" | cut -d '.' -f 3)" / 10)"
 		Logger.LogInformation "Found INSTANCE_VERSION_SPS = '${Plugin_Instance_Version_SPS}'."
 		[ "${Plugin_Instance_Version_Major}" == "1" ] && [ "${Plugin_Instance_Version_SPS}" -lt 9 ] && Logger.Exit Failure "Unsupported INSTANCE_VERSION_MAJOR = '1' and INSTANCE_VERSION_SPS < '9'.\n${Constant_PreRequisitesMsg}" 125
-		[ "${Plugin_Instance_Version_Major}" == "2" ] && [ "${Plugin_Instance_Version_SPS}" -gt 7 ] && Logger.Exit Failure "Unsupported INSTANCE_VERSION_MAJOR = '2' and INSTANCE_VERSION_SPS > '7'.\n${Constant_PreRequisitesMsg}" 125
+		[ "${Plugin_Instance_Version_Major}" == "2" ] && [ "${Plugin_Instance_Version_SPS}" -gt 8 ] && Logger.Exit Failure "Unsupported INSTANCE_VERSION_MAJOR = '2' and INSTANCE_VERSION_SPS > '8'.\n${Constant_PreRequisitesMsg}" 125
 		Logger.LogPass "Supported INSTANCE_VERSION."
 
 		Logger.LogInformation "Determining DRIVER_PATH."
@@ -2268,7 +2268,8 @@ obj=[
 			'sslValidateCertificate':'${Plugin_Ssl_Validate_Certificate}',
 			'isADUser':'${Plugin_AD_User}',
 			'customRoles':'${Plugin_Custom_Roles}'
-		}
+		},
+		'ScriptVersion': '${Constant_Script_Version}'
 	}
 ]
 with open('${Constant_Plugin_Config_File_Old}', 'w') as config:

@@ -306,7 +306,7 @@ Package()
 			"SLES")
 			{
 				case "${Package_OS_Version}" in
-					"15" | "15.1" | "15.2" | "15.3" | "15.4" | "15.5" | "15.6")
+					"15" | "15.1" | "15.2" | "15.3" | "15.4" | "15.5" | "15.6" | "15.7")
 					{
 						Package_Python_Executable=${Package_Python3_Executable}
 						Package.Require Python3
@@ -619,6 +619,8 @@ Check()
 			SLES_SAP-15.5
 			SLES-15.6
 			SLES_SAP-15.6
+			SLES-15.7
+			SLES_SAP-15.7
 			RHEL-7.4
 			RHEL-7.5
 			RHEL-7.6

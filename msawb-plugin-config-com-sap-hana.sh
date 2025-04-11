@@ -24,7 +24,7 @@ Constant()
 		Constant_Plugin_Host_Service_File="/usr/lib/systemd/system/msawb-pluginhost-${Constant_Plugin_Name}-{1}.service"
 		Constant_Plugin_Host_Service_File_Old="/usr/lib/systemd/system/msawb-pluginhost-saphana-{1}.service"
 
-		Constant_Script_Version="2.1.0.8"
+		Constant_Script_Version="2.1.0.9"
 		Constant_Script_Name="$(basename "${0}")"
 		Constant_Script_Path="$(realpath "${0}")"
 		Constant_Script_Directory="$(dirname "${Constant_Script_Path}")"
@@ -920,6 +920,7 @@ Plugin()
 		Plugin_IsHSRAlreadyRegistered="0"
 		Plugin_AD_User="false"
 		Plugin_Custom_Roles="false"
+		Plugin_IsCurrentPluginContextHSR="false"
 	}
 
 	Plugin.Parse()
@@ -1009,6 +1010,7 @@ Plugin()
 					Logger.ExitOnArgumentMissing "${@}"
 					shift
 					Plugin_HSR_Unique_Value="${1}"
+					Plugin_IsCurrentPluginContextHSR="true"
 					shift
 				};;
 
@@ -1109,13 +1111,13 @@ Plugin()
 			elif [ "x${Plugin_Sid}" != "x${Plugin_Config_Sid}" ]
 			then
 			{
-				Logger.Exit Failure "Cannot add specified SID '${Plugin_Sid}': Please remove the current SID with the '--remove' command." 16
+				Logger.LogInformation "Adding a new SID to the config, existing SID: '${Plugin_Config_Sid}', new SID: '${Plugin_Sid}'."
 			}
 			fi
 		}
 		fi
 
-		if [ "x${Plugin_Config_HSR_Unique_Value}" != "x" ]
+		if [[ "x${Plugin_Config_HSR_Unique_Value}" != "x" && "${Plugin_IsCurrentPluginContextHSR}" == "true" ]]
 		then
 		{
 			if [ "x${Plugin_HSR_Unique_Value}" == "x" ]
@@ -1151,7 +1153,7 @@ Plugin()
 		}
 		fi
 
-		[[ "${Plugin_IsHSRAlreadyRegistered}" -ne "0" && "x${Plugin_HSR_Unique_Value}" == "x" ]] && Logger.Exit Failure "This VM is registered as HSR instance. Please do stop protection for HSR instance and then run pre-registration script in standalone mode." 9
+		[[ "${Plugin_IsHSRAlreadyRegistered}" -ne "0" && "x${Plugin_HSR_Unique_Value}" == "x" && "${Plugin_IsCurrentPluginContextHSR}" == "true" ]] && Logger.Exit Failure "This VM is registered as HSR instance. Please do stop protection for HSR instance and then run pre-registration script in standalone mode." 9
 
 		if [ "x${Plugin_Sid}" == "x" ]
 		then
@@ -2214,7 +2216,7 @@ Plugin()
 
 		result="$("${Package_Python_Executable}" -c $'import json\n'"with open('${Constant_Plugin_Config_File_Old}', 'r') as config: print(len(json.load(config)))" 2>&1)"
 		[ "${?}" -ne "0" ] && Logger.LogInformation "No valid existing configuration found." && return
-		[ "${result}" -ne "1" ] && Logger.Exit Failure "More than one SID found in existing configuration: Not supported." 117
+		[ "${result}" -ne "1" ] && Logger.LogInformation "More than one SID found in existing configuration."
 
 		result="$("${Package_Python_Executable}" -c $'import json\n'"with open('${Constant_Plugin_Config_File_Old}', 'r') as config: print(json.load(config)[0]['LogicalContainerId'])" 2>&1)"
 		[ "${?}" -eq "0" ] && Plugin_Config_Sid="${result}" && Logger.LogInformation "Found SID = '${Plugin_Config_Sid}'."
@@ -2250,10 +2252,11 @@ Plugin()
 		{
 
 			local result
-			[ "x${Plugin_HSR_Unique_Value}" == "x" ] && result="$("${Package_Python_Executable}" -c "
+			[[ "x${Plugin_HSR_Unique_Value}" == "x" || "${Plugin_IsCurrentPluginContextHSR}" == "false" ]] && result="$("${Package_Python_Executable}" -c "
 import json
-obj=[
-	{
+import os.path
+data=[]
+obj={
 		'LogicalContainerId': '${Plugin_Sid}',
 		'LogicalContainerOSUser' : '${Plugin_User}',
 		'PropertyBag':
@@ -2270,18 +2273,34 @@ obj=[
 			'customRoles':'${Plugin_Custom_Roles}'
 		},
 		'ScriptVersion': '${Constant_Script_Version}'
-	}
-]
+    }
+
+file_exists = os.path.exists('${Constant_Plugin_Config_File_Old}')
+
+if (file_exists and os.path.getsize('${Constant_Plugin_Config_File_Old}') > 0):
+  try:
+   with open('${Constant_Plugin_Config_File_Old}', 'r') as config:
+    data = json.load(config)
+    for var in data:
+      if (var['LogicalContainerId'] == '${Plugin_Sid}'):
+        data.remove(var)
+  except Exception as e:
+    print('Error: Failed to load or update json.', e)
+    sys.exit(1)
+
+data.append(obj)
+
 with open('${Constant_Plugin_Config_File_Old}', 'w') as config:
-	json.dump(obj, config, indent = 4, sort_keys = True)
+	json.dump(data, config, indent = 4, sort_keys = True)
 " 2>&1)"
 
 			[[ "x${Plugin_HSR_Unique_Value}" == "x" &&  "${?}" -ne "0" ]] && Logger.Exit Failure "Failed to write configuration: '${result}'." 118
 
-			[ "x${Plugin_HSR_Unique_Value}" != "x" ] && result="$("${Package_Python_Executable}" -c "
+			[[ "x${Plugin_HSR_Unique_Value}" != "x" && "${Plugin_IsCurrentPluginContextHSR}" == "true" ]] && result="$("${Package_Python_Executable}" -c "
 import json
-obj=[
-	{
+import os.path
+data=[]
+obj={
 		'LogicalContainerId': '${Plugin_Sid}',
 		'LogicalContainerOSUser' : '${Plugin_User}',
 		'LogicalContainerHSRGuid' : '${Plugin_HSR_Unique_Value}',
@@ -2297,22 +2316,55 @@ obj=[
 			'sslValidateCertificate':'${Plugin_Ssl_Validate_Certificate}',
 			'isADUser':'${Plugin_AD_User}',
 			'customRoles':'${Plugin_Custom_Roles}'
-		}
+		},
+		'ScriptVersion': '${Constant_Script_Version}'
 	}
-]
+
+file_exists = os.path.exists('${Constant_Plugin_Config_File_Old}')
+
+if (file_exists and os.path.getsize('${Constant_Plugin_Config_File_Old}') > 0):
+  try:
+   with open('${Constant_Plugin_Config_File_Old}', 'r') as config:
+    data = json.load(config)
+    for var in data:
+      if (var['LogicalContainerId'] == '${Plugin_Sid}'):
+        data.remove(var)
+  except Exception as e:
+    print('Error: Failed to load or update json.', e)
+    sys.exit(1)
+
+data.append(obj)
+
 with open('${Constant_Plugin_Config_File_Old}', 'w') as config:
-	json.dump(obj, config, indent = 4, sort_keys = True)
+	json.dump(data, config, indent = 4, sort_keys = True)
 " 2>&1)"
 
-			[[ "x${Plugin_HSR_Unique_Value}" != "x" &&  "${?}" -ne "0" ]] && Logger.Exit Failure "Failed to write configuration: '${result}'." 118
+			[[ "x${Plugin_HSR_Unique_Value}" != "x" &&  "${?}" -ne "0" && "${Plugin_IsCurrentPluginContextHSR}" == "true" ]] && Logger.Exit Failure "Failed to write configuration: '${result}'." 118
 
 		}
 		elif [ "${Plugin_Mode}" == "remove" ]
 		then
 		{
-			#In the future if we support multiple instance
-			#delete only one entry instead of whole file.
-			rm -f "${Constant_Plugin_Config_File_Old}"
+       local result && result="$("${Package_Python_Executable}" -c "
+import json
+import os
+data=[]
+file_exists = os.path.exists('${Constant_Plugin_Config_File_Old}')
+
+if (file_exists and os.path.getsize('${Constant_Plugin_Config_File_Old}') > 0):
+   with open('${Constant_Plugin_Config_File_Old}', 'r') as config:
+     data = json.load(config)
+     for var in data:
+       if (var['LogicalContainerId'] == '${Plugin_Sid}'):
+         data.remove(var)
+
+if(len(data) == 0):
+    os.remove('${Constant_Plugin_Config_File_Old}')
+else:
+    with open('${Constant_Plugin_Config_File_Old}', 'w') as config:
+	  json.dump(data, config, indent = 4, sort_keys = True)
+" 2>&1)"
+  [ "${?}" -ne "0" ] && Logger.Exit Failure "Failed to write configuration: '${result}'." 118
 		}
 		fi
 
@@ -2461,7 +2513,7 @@ with open('${Constant_Plugin_Config_File_Old}', 'w') as config:
 			    If this argument is not provided, it is automatically determined by searching in the configuration files.
 				
 			  -sts SSL_TRUST_STORE, --ssltruststore SSL_TRUST_STORE
-			    Specify the name of the trust store file that contains the server’s public certificates (eg. sapsrv.pse).
+			    Specify the name of the trust store file that contains the server's public certificates (eg. sapsrv.pse).
 			    The script will search for the file in the appropriate directory depending on the cryptoprovider mentioned.
 			    If this argument is not provided, it is automatically determined by searching in the configuration files.
 

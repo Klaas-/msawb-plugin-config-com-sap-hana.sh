@@ -24,7 +24,7 @@ Constant()
 		Constant_Plugin_Host_Service_File="/usr/lib/systemd/system/msawb-pluginhost-${Constant_Plugin_Name}-{1}.service"
 		Constant_Plugin_Host_Service_File_Old="/usr/lib/systemd/system/msawb-pluginhost-saphana-{1}.service"
 
-		Constant_Script_Version="2.1.0.9"
+		Constant_Script_Version="2.1.0.10"
 		Constant_Script_Name="$(basename "${0}")"
 		Constant_Script_Path="$(realpath "${0}")"
 		Constant_Script_Directory="$(dirname "${Constant_Script_Path}")"
@@ -2224,7 +2224,7 @@ Plugin()
 		result="$("${Package_Python_Executable}" -c $'import json\n'"with open('${Constant_Plugin_Config_File_Old}', 'r') as config: print(json.load(config)[0]['LogicalContainerOSUser'])" 2>&1)"
 		[ "${?}" -eq "0" ] && Plugin_Config_User="${result}" && Logger.LogInformation "Found USER = '${Plugin_Config_User}'."
 
-		result="$("${Package_Python_Executable}" -c $'import json\n'"with open('${Constant_Plugin_Config_File_Old}', 'r') as config: print(json.load(config)[0]['LogicalContainerHSRGuid'])" 2>&1)"
+		result="$("${Package_Python_Executable}" -c $'import json\n'"with open('${Constant_Plugin_Config_File_Old}', 'r') as config: print(json.load(config)[0]['LogicalContainerDistributedName'])" 2>&1)"
 		[ "${?}" -eq "0" ] && Plugin_Config_HSR_Unique_Value="${result}" && Logger.LogInformation "Found USER = '${Plugin_Config_HSR_Unique_Value}'."
 
 		result="$("${Package_Python_Executable}" -c $'import json\n'"with open('${Constant_Plugin_Config_File_Old}', 'r') as config: print(json.load(config)[0]['PropertyBag']['odbcDriverPath'])" 2>&1)"
@@ -2303,7 +2303,7 @@ data=[]
 obj={
 		'LogicalContainerId': '${Plugin_Sid}',
 		'LogicalContainerOSUser' : '${Plugin_User}',
-		'LogicalContainerHSRGuid' : '${Plugin_HSR_Unique_Value}',
+		'LogicalContainerDistributedName' : '${Plugin_HSR_Unique_Value}',
 		'PropertyBag':
 		{
 			'odbcDriverPath': '${Plugin_Driver_Path}',

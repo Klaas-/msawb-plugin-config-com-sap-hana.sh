@@ -24,7 +24,7 @@ Constant()
 		Constant_Plugin_Host_Service_File="/usr/lib/systemd/system/msawb-pluginhost-${Constant_Plugin_Name}-{1}.service"
 		Constant_Plugin_Host_Service_File_Old="/usr/lib/systemd/system/msawb-pluginhost-saphana-{1}.service"
 
-		Constant_Script_Version="2.1.0.10"
+		Constant_Script_Version="2.1.0.11"
 		Constant_Script_Name="$(basename "${0}")"
 		Constant_Script_Path="$(realpath "${0}")"
 		Constant_Script_Directory="$(dirname "${Constant_Script_Path}")"
@@ -306,7 +306,7 @@ Package()
 			"SLES")
 			{
 				case "${Package_OS_Version}" in
-					"15" | "15.1" | "15.2" | "15.3" | "15.4" | "15.5" | "15.6")
+					"15" | "15.1" | "15.2" | "15.3" | "15.4" | "15.5" | "15.6" | "15.7")
 					{
 						Package_Python_Executable=${Package_Python3_Executable}
 						Package.Require Python3
@@ -321,7 +321,7 @@ Package()
 			"RHEL")
 			{
 				case "${Package_OS_Version}" in
-					"9.0" | "9.2" | "9.4")
+					"9.0" | "9.2" | "9.4" | "9.6")
 					{
 						Package_Python_Executable=${Package_Python3_Executable}
 						Package.Require Python3
@@ -371,7 +371,7 @@ Package()
 			"RHEL")
 			{
 				case "${Package_OS_Version}" in
-					"9.0" | "9.2" | "9.4")
+					"9.0" | "9.2" | "9.4" | "9.6")
 					{
 						Package.Require OpenSSL "true"
 					};;
@@ -619,11 +619,8 @@ Check()
 			SLES_SAP-15.5
 			SLES-15.6
 			SLES_SAP-15.6
-			RHEL-7.4
-			RHEL-7.5
-			RHEL-7.6
-			RHEL-7.7
-			RHEL-7.9
+			SLES-15.7
+			SLES_SAP-15.7
 			RHEL-8.1
 			RHEL-8.2
 			RHEL-8.4
@@ -633,6 +630,7 @@ Check()
 			RHEL-9.0
 			RHEL-9.2
 			RHEL-9.4
+			RHEL-9.6
 		Check_OS_Name_Version_Supported_EOF
 		[ "${?}" -ne "0" ] && Logger.Exit Failure "Found unsupported OS_NAME_VERSION = '${Check_OS_Name_Version}'.\n${Constant_PreRequisitesMsg}" 100
 		Logger.LogPass "Found supported OS_NAME_VERSION = '${Check_OS_Name_Version}'."

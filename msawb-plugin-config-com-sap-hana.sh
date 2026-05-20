@@ -24,7 +24,7 @@ Constant()
 		Constant_Plugin_Host_Service_File="/usr/lib/systemd/system/msawb-pluginhost-${Constant_Plugin_Name}-{1}.service"
 		Constant_Plugin_Host_Service_File_Old="/usr/lib/systemd/system/msawb-pluginhost-saphana-{1}.service"
 
-		Constant_Script_Version="2.1.0.11"
+		Constant_Script_Version="2.1.0.13"
 		Constant_Script_Name="$(basename "${0}")"
 		Constant_Script_Path="$(realpath "${0}")"
 		Constant_Script_Directory="$(dirname "${Constant_Script_Path}")"
@@ -281,6 +281,13 @@ Package()
 		Package_OpenSSL_Version_Min="1.1.1k"
 		Package_OpenSSL_Version_Rec="1.1.1k"
 		Package_OpenSSL_RHEL="compat-openssl11"
+
+		Package_Crontab_SLES="cronie"
+		Package_Crontab_Service_SLES="cron"
+
+		# List of SLES versions that require crontab installation
+		# Add new versions here as needed (space-separated)
+		Package_Crontab_Required_SLES_Versions="16.0"
 	}
 
 	Package.Update()
@@ -306,7 +313,7 @@ Package()
 			"SLES")
 			{
 				case "${Package_OS_Version}" in
-					"15" | "15.1" | "15.2" | "15.3" | "15.4" | "15.5" | "15.6" | "15.7")
+					"15" | "15.1" | "15.2" | "15.3" | "15.4" | "15.5" | "15.6" | "15.7" | "16.0")
 					{
 						Package_Python_Executable=${Package_Python3_Executable}
 						Package.Require Python3
@@ -321,7 +328,7 @@ Package()
 			"RHEL")
 			{
 				case "${Package_OS_Version}" in
-					"9.0" | "9.2" | "9.4" | "9.6")
+					"9.0" | "9.2" | "9.4" | "9.6" | "9.8" | "10.0")
 					{
 						Package_Python_Executable=${Package_Python3_Executable}
 						Package.Require Python3
@@ -367,17 +374,118 @@ Package()
 
 	Package.RequireOpenSSL()
 	{
-		case "${Package_OS_Name}" in
-			"RHEL")
-			{
-				case "${Package_OS_Version}" in
-					"9.0" | "9.2" | "9.4" | "9.6")
-					{
-						Package.Require OpenSSL "true"
-					};;
-				esac
-			};;
-		esac
+		if [ "${Plugin_Install_CompatOpenSSL}" == "true" ]
+		then
+		{
+			# When --install-compat-openssl is set, always use compat-openssl11 with 1.1.1k for all RHEL versions
+			Package.Require OpenSSL "true"
+		}
+		else
+		{
+			case "${Package_OS_Name}" in
+				"RHEL")
+				{
+					case "${Package_OS_Version}" in
+						"9.0" | "9.2")
+						{
+							# RHEL 9.0 and 9.2 use compat-openssl11 with 1.1.1k
+							Package.Require OpenSSL "true"
+						};;
+						"9.4" | "9.6" | "9.8" | "10.0")
+						{
+							# RHEL 9.4+ uses OpenSSL 3.0+, update package name and version requirements
+							Package_OpenSSL_RHEL="openssl"
+							Package_OpenSSL_Version_Min="3.0.0"
+							Package_OpenSSL_Version_Rec="3.0.0"
+							Package.Require OpenSSL "true"
+						};;
+					esac
+				};;
+			esac
+		}
+		fi
+	}
+
+	Package.RequireCrontab()
+	{
+		# Check if crontab installation is required for current OS version
+		local requiredVersions="Package_Crontab_Required_${Package_OS_Name}_Versions"
+		requiredVersions="${!requiredVersions}"
+
+		if [ "x${requiredVersions}" == "x" ]
+		then
+		{
+			Logger.LogInformation "Skipping crontab installation on ${Package_OS_Name} ${Package_OS_Version}. No crontab requirement configured for this OS."
+			return
+		}
+		fi
+
+		# Check if current version is in the list of required versions
+		local versionMatch="false"
+		for version in ${requiredVersions}
+		do
+			if [ "${Package_OS_Version}" == "${version}" ]
+			then
+				versionMatch="true"
+				break
+			fi
+		done
+
+		if [ "${versionMatch}" == "false" ]
+		then
+		{
+			Logger.LogInformation "Skipping crontab installation on ${Package_OS_Name} ${Package_OS_Version}. Only required for ${Package_OS_Name} versions: ${requiredVersions}."
+			return
+		}
+		fi
+
+		local serviceName="Package_Crontab_Service_${Package_OS_Name}"
+		serviceName="${!serviceName}"
+
+		[ "x${serviceName}" == "x" ] && Logger.LogInformation "Ignoring crontab installation on Distro: '${Package_OS_Name}'" && return
+
+		Logger.LogInformation "Checking if crontab is available."
+		local crontabPath="$(which crontab 2> /dev/null)"
+
+		if [ "x${crontabPath}" == "x" ]
+		then
+		{
+			Logger.LogInformation "Crontab not found. Installing cron package."
+			local packageName="Package_Crontab_${Package_OS_Name}"
+			packageName="${!packageName}"
+			local installCommand="Package_${Package_OS_Name}_Install_Command"
+			installCommand="${!installCommand//\{1\}/${packageName}}"
+
+			Package.Update
+			eval "${installCommand}"
+
+			crontabPath="$(which crontab 2> /dev/null)"
+			[ "x${crontabPath}" == "x" ] && Logger.Exit Failure "Failed to install crontab. Please install the cron package manually." 92
+			Logger.LogPass "Crontab installed successfully."
+		}
+		else
+		{
+			Logger.LogPass "Crontab is already installed."
+		}
+		fi
+
+		Logger.LogInformation "Checking if cron service '${serviceName}' is enabled and running."
+		systemctl is-active --quiet "${serviceName}.service"
+		if [ "${?}" -ne "0" ]
+		then
+		{
+			Logger.LogInformation "Cron service '${serviceName}' is not active. Enabling and starting."
+			systemctl enable "${serviceName}.service" 2>/dev/null
+			systemctl start "${serviceName}.service"
+			systemctl is-active --quiet "${serviceName}.service"
+			[ "${?}" -ne "0" ] && Logger.Exit Failure "Failed to start cron service '${serviceName}'. Please start it manually using: systemctl start ${serviceName}.service" 103
+			Logger.LogPass "Cron service '${serviceName}' enabled and started successfully."
+		}
+		else
+		{
+			Logger.LogPass "Cron service '${serviceName}' is already active."
+		}
+		fi
 	}
 
 	Package.RequireLibrary()
@@ -621,6 +729,8 @@ Check()
 			SLES_SAP-15.6
 			SLES-15.7
 			SLES_SAP-15.7
+			SLES-16.0
+			SLES_SAP-16.0
 			RHEL-8.1
 			RHEL-8.2
 			RHEL-8.4
@@ -631,6 +741,8 @@ Check()
 			RHEL-9.2
 			RHEL-9.4
 			RHEL-9.6
+			RHEL-9.8
+			RHEL-10.0
 		Check_OS_Name_Version_Supported_EOF
 		[ "${?}" -ne "0" ] && Logger.Exit Failure "Found unsupported OS_NAME_VERSION = '${Check_OS_Name_Version}'.\n${Constant_PreRequisitesMsg}" 100
 		Logger.LogPass "Found supported OS_NAME_VERSION = '${Check_OS_Name_Version}'."
@@ -675,6 +787,23 @@ Check()
 		systemctl is-active --quiet waagent.service
 		[ "${?}" -ne "0" ] && Logger.Exit Failure "Service 'WaAgent' is not active. Please run following command to restart waagent:\n systemctl restart waagent.service\n\n" 102
 		Logger.LogPass "Service 'WaAgent' is active."
+
+		Logger.LogInformation "Checking if VM extension processing is enabled in '/etc/waagent.conf'."
+		local waagent_conf="/etc/waagent.conf"
+		if [ -f "${waagent_conf}" ]
+		then
+		{
+			local extensions_enabled
+			extensions_enabled="$(grep -E '^[[:space:]]*Extensions\.Enabled[[:space:]]*=' "${waagent_conf}" | tail -1 | sed 's/.*=[[:space:]]*//' | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+			if [ "x${extensions_enabled}" == "xn" ]
+			then
+			{
+				Logger.Exit Failure "VM extension processing is disabled. Set 'Extensions.Enabled=y' in '${waagent_conf}' and restart waagent service." 103
+			}
+			fi
+		}
+		fi
+		Logger.LogPass "VM extension processing is enabled."
 	}
 
 	Check.PythonXMLReq()
@@ -919,6 +1048,7 @@ Plugin()
 		Plugin_AD_User="false"
 		Plugin_Custom_Roles="false"
 		Plugin_IsCurrentPluginContextHSR="false"
+		Plugin_Install_CompatOpenSSL="false"
 	}
 
 	Plugin.Parse()
@@ -1062,6 +1192,12 @@ Plugin()
 				{
 					shift
 					Plugin_AD_User="true"
+				};;
+
+				"--install-compat-openssl")
+				{
+					shift
+					Plugin_Install_CompatOpenSSL="true"
 				};;
 
 				*)
@@ -2622,6 +2758,7 @@ Main()
 				Package.Require Curl
 				Package.Require Libicu "true"
 				Package.Require Unzip "true"
+				Package.RequireCrontab
 
 				Check.Waagent
 				Check.PythonXMLReq
